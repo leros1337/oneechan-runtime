@@ -1,0 +1,8 @@
+{
+    "indexUrl": "https://github.com/keiyoushi/extensions/raw/repo/index.pb",
+    "name": "Keiyoushi",
+    "badgeLabel": "Keiyoushi",
+    "signingKeyFingerprint": "9add655a",
+    "website": "https://keiyoushi.github.io",
+    "isLegacy": false
+}

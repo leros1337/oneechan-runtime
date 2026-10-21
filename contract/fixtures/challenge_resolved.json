@@ -1,0 +1,16 @@
+{
+    "challengeId": "c1",
+    "solved": true,
+    "cookies": [
+        {
+            "name": "cf_clearance",
+            "value": "x",
+            "domain": ".site.test",
+            "path": "/",
+            "expiresAt": 1900000000000,
+            "secure": true,
+            "httpOnly": true,
+            "hostOnly": false
+        }
+    ]
+}

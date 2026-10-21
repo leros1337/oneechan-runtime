@@ -1,0 +1,102 @@
+diff --git a/src/hotspot/os/bsd/os_bsd.cpp b/src/hotspot/os/bsd/os_bsd.cpp
+index 9e7620df6..582a36e81 100644
+--- a/src/hotspot/os/bsd/os_bsd.cpp
++++ b/src/hotspot/os/bsd/os_bsd.cpp
+@@ -519,7 +519,14 @@ void os::init_system_properties_values() {
+ #endif
+     Arguments::set_java_home(buf);
+     if (!set_boot_path('/', ':')) {
++#ifdef __IOS__
++      // The JDK is linked statically into an app executable, so the derived home
++      // (<App>.app/lib) usually holds no runtime image. The embedder passes
++      // -Djava.home=<runtime image>; Arguments::add_property() sets the boot path
++      // from it and Arguments::finalize_vm_init_args() fails if it is still unset.
++#else
+         vm_exit_during_initialization("Failed setting boot class path.", nullptr);
++#endif
+     }
+   }
+ 
+@@ -1620,6 +1627,11 @@ static void warn_fail_commit_memory(char* addr, size_t size, bool exec,
+ //       left at the time of mmap(). This could be a potential
+ //       problem.
+ bool os::pd_commit_memory(char* addr, size_t size, bool exec) {
++#ifdef __IOS__
++  // iOS refuses executable anonymous memory (no JIT entitlement). Zero never runs code
++  // out of the code cache, so commit "executable" reservations as plain RW memory.
++  exec = false;
++#endif
+   int prot = exec ? PROT_READ|PROT_WRITE|PROT_EXEC : PROT_READ|PROT_WRITE;
+ #if defined(__OpenBSD__)
+   // XXX: Work-around mmap/MAP_FIXED bug temporarily on OpenBSD
+@@ -1870,6 +1882,11 @@ static bool bsd_mprotect(char* addr, size_t size, int prot) {
+ }
+ 
+ // Set protections specified
++#ifdef __IOS__
++#define NOT_IOS(x)
++#else
++#define NOT_IOS(x) x
++#endif
+ bool os::protect_memory(char* addr, size_t bytes, ProtType prot,
+                         bool is_committed) {
+   unsigned int p = 0;
+@@ -1877,7 +1894,7 @@ bool os::protect_memory(char* addr, size_t bytes, ProtType prot,
+   case MEM_PROT_NONE: p = PROT_NONE; break;
+   case MEM_PROT_READ: p = PROT_READ; break;
+   case MEM_PROT_RW:   p = PROT_READ|PROT_WRITE; break;
+-  case MEM_PROT_RWX:  p = PROT_READ|PROT_WRITE|PROT_EXEC; break;
++  case MEM_PROT_RWX:  p = PROT_READ|PROT_WRITE NOT_IOS(|PROT_EXEC); break;
+   default:
+     ShouldNotReachHere();
+   }
+diff --git a/src/hotspot/share/runtime/arguments.cpp b/src/hotspot/share/runtime/arguments.cpp
+index b08e71f55..e3ba04fe6 100644
+--- a/src/hotspot/share/runtime/arguments.cpp
++++ b/src/hotspot/share/runtime/arguments.cpp
+@@ -2582,6 +2582,13 @@ void Arguments::fix_appclasspath() {
+ }
+ 
+ jint Arguments::finalize_vm_init_args() {
++#ifdef __IOS__
++  if (get_boot_class_path() == nullptr) {
++    jio_fprintf(defaultStream::error_stream(),
++      "No Java runtime image found: pass -Djava.home=<dir containing lib/modules>\n");
++    return JNI_ERR;
++  }
++#endif
+   // check if the default lib/endorsed directory exists; if so, error
+   char path[JVM_MAXPATHLEN];
+   const char* fileSep = os::file_separator();
+@@ -3220,6 +3227,31 @@ jint Arguments::parse(const JavaVMInitArgs* initial_cmd_args) {
+     return code;
+   }
+ 
++#ifdef __IOS__
++  // iOS: the JDK is linked statically into the app, so os_bsd.cpp cannot derive the java home
++  // from the VM's location. Honor the embedder's -Djava.home for the boot image (lib/modules)
++  // and library dir too, before the image is opened below. Elsewhere -Djava.home only changes
++  // the Java-visible property.
++  for (int i = 0; i < initial_cmd_args->nOptions; i++) {
++    const char* opt = initial_cmd_args->options[i].optionString;
++    const char* home = nullptr;
++    if (opt != nullptr && match_option(initial_cmd_args->options + i, "-Djava.home=", &home) && home[0] != '\0') {
++      char path[JVM_MAXPATHLEN];
++      struct stat st;
++      jio_snprintf(path, sizeof(path), "%s/lib/modules", home);
++      if (os::stat(path, &st) != 0) {
++        jio_fprintf(defaultStream::error_stream(), "-Djava.home=%s: %s not found\n", home, path);
++        return JNI_EINVAL;
++      }
++      set_java_home(home);
++      _boot_class_path->set_value(path);
++      _has_jimage = true;
++      jio_snprintf(path, sizeof(path), "%s/lib", home);
++      set_dll_dir(path);
++    }
++  }
++#endif
++
+   // Parse the options in the /java.base/jdk/internal/vm/options resource, if present
+   char *vmoptions = ClassLoader::lookup_vm_options();
+   if (vmoptions != nullptr) {

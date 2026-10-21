@@ -1,0 +1,41 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+.fleet/
+*.iml
+*.swp
+
+# Secrets
+.env
+.env.*
+*.p12
+*.mobileprovision
+*.cer
+*.pem
+*.key
+local.properties
+secrets.properties
+
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+out/
+!**/src/**/build/
+
+# Xcode (jvm-ios spike and smoke apps)
+*.xcodeproj/
+DerivedData/
+.build/
+xcuserdata/
+*.xcresult
+
+# JVM build work tree (downloads, clones, builds; see jvm-ios/README.md) and packaged output
+jvm-ios/work/
+jvm-ios/dist/
+*.xcframework/
+
+# Python tooling
+__pycache__/
+.pytest_cache/

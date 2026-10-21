@@ -1,0 +1,3 @@
+[submodule "extension-host/vendor/suwayomi"]
+	path = extension-host/vendor/suwayomi
+	url = https://github.com/Suwayomi/Suwayomi-Server

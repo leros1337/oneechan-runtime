@@ -1,0 +1,69 @@
+[
+    {
+        "type": "header",
+        "name": "Note"
+    },
+    {
+        "type": "separator",
+        "name": ""
+    },
+    {
+        "type": "select",
+        "name": "Status",
+        "values": [
+            "Any",
+            "Ongoing"
+        ],
+        "state": 1
+    },
+    {
+        "type": "text",
+        "name": "Author",
+        "state": "Oda"
+    },
+    {
+        "type": "checkbox",
+        "name": "Adult",
+        "state": false
+    },
+    {
+        "type": "tristate",
+        "name": "Action",
+        "state": 2
+    },
+    {
+        "type": "group",
+        "name": "Genres",
+        "state": [
+            {
+                "type": "tristate",
+                "name": "Romance",
+                "state": 1
+            },
+            {
+                "type": "checkbox",
+                "name": "Official",
+                "state": true
+            }
+        ]
+    },
+    {
+        "type": "sort",
+        "name": "Order",
+        "values": [
+            "Latest",
+            "Popular"
+        ],
+        "state": {
+            "index": 1,
+            "ascending": true
+        }
+    },
+    {
+        "type": "sort",
+        "name": "Unsorted",
+        "values": [
+            "A"
+        ]
+    }
+]

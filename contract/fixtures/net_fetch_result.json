@@ -1,0 +1,17 @@
+{
+    "id": "f1",
+    "code": 200,
+    "message": "OK",
+    "headers": [
+        [
+            "Content-Type",
+            "text/html"
+        ],
+        [
+            "Set-Cookie",
+            "cf_clearance=x; Path=/"
+        ]
+    ],
+    "bodyBase64": "PGh0bWw+",
+    "protocol": "h2"
+}

@@ -1,0 +1,23 @@
+# Eclipse OpenJ9 options for the embedded extension host. jvm-ios/package.sh bundles this file as
+# jre/lib/oneechan-jvm.options; EmbeddedRuntime.bundled() reads it and JNITransport fills in
+# ${dataDir}, ${cacheDir}, ${tmpDir} and ${javaHome}. One option per line; -Xmx, the class path,
+# java.home and the directories are added by JNITransport for every VM.
+#
+# Interpreter only: iOS forbids writable+executable memory, and the build links no JIT.
+-Xint
+-Xnojit
+-Xnoaot
+# Extensions are R8-optimized for ART and fail the JVM verifier (EmbeddedBridge refuses to start
+# while it is on). OpenJ9 21 prints a deprecation warning (JVMJ9VM193W) for it.
+-Xverify:none
+# Generational concurrent GC, OpenJ9's default, spelled out.
+-Xgcpolicy:gencon
+# No shared classes cache: it lives in memory-mapped files and SysV semaphores outside the app's
+# sandbox conventions, and is not built for iOS.
+-Xshareclasses:none
+# No attach API: it needs a shared /tmp directory and SysV semaphores.
+-Dcom.ibm.tools.attach.enable=no
+# Diagnostics: javacore files go to the cache directory; no core or heap dumps.
+-Xdump:directory=${cacheDir}
+-Xdump:system:none
+-Xdump:heap:none

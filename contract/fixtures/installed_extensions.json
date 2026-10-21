@@ -1,0 +1,29 @@
+[
+    {
+        "pkgName": "eu.kanade.tachiyomi.extension.all.kavita",
+        "name": "Kavita",
+        "versionName": "1.4.26",
+        "versionCode": 26,
+        "libVersion": "1.4",
+        "lang": "all",
+        "contentWarning": "SAFE",
+        "repoIndexUrl": "https://raw.githubusercontent.com/Kareadita/tach-extension/repo/repo.json",
+        "signatureHash": "5887aee6",
+        "isTrusted": true,
+        "hasUpdate": false,
+        "isObsolete": false,
+        "iconPath": "/data/icons/eu.kanade.tachiyomi.extension.all.kavita.png",
+        "sources": [
+            {
+                "id": "7266875667263635239",
+                "name": "Kavita (1)",
+                "lang": "all",
+                "pkgName": "eu.kanade.tachiyomi.extension.all.kavita",
+                "supportsLatest": true,
+                "isConfigurable": true,
+                "contentWarning": "SAFE",
+                "versionId": 1
+            }
+        ]
+    }
+]

@@ -1,0 +1,35 @@
+# Provenance of the vendored Android API signature (AOSP METADATA style, informational).
+#
+# current.txt is the public SDK API of Android 11 (API level 30) in metalava "Signature format: 2.0".
+# It is byte-identical to prebuilts/sdk 30/public/api/android.txt (commit 6cd31be5), the API of the
+# android.jar it replaces, but is taken from frameworks/base, which is licensed under Apache-2.0.
+# The stub jar (android-stubs.jar) is generated from it by src/generator (see ../build.gradle.kts).
+
+name: "Android API signature (API 30)"
+description: "frameworks/base api/current.txt, the public android.* / dalvik.* API of Android 11"
+third_party {
+  url {
+    type: GIT
+    value: "https://android.googlesource.com/platform/frameworks/base"
+  }
+  version: "android-11.0.0_r1"
+  # refs/tags/android-11.0.0_r1^{} (tag object 8580d7c59a646d53eef559463652e195107ce85e)
+  commit: "34a1b9c951c38537ab96b69bc308f6e0884823f5"
+  license_type: NOTICE  # Apache-2.0 (frameworks/base MODULE_LICENSE_APACHE2)
+}
+files {
+  path: "current.txt"
+  source: "frameworks/base/api/current.txt"
+  url: "https://android.googlesource.com/platform/frameworks/base/+/34a1b9c951c38537ab96b69bc308f6e0884823f5/api/current.txt"
+  sha256: "6d47e06890825e07701ab909a2d0d0dd9ce70e2110358b1df353379aa2c38418"
+}
+files {
+  path: "NOTICE"
+  source: "frameworks/base/NOTICE"
+  url: "https://android.googlesource.com/platform/frameworks/base/+/34a1b9c951c38537ab96b69bc308f6e0884823f5/NOTICE"
+  sha256: "cf4dd7cea5b6bcd2622ddd3529b3c74d16ba2b4db444575bc6f5c33f8a960530"
+}
+files {
+  path: "LICENSE"
+  source: "Apache License 2.0 text (https://www.apache.org/licenses/LICENSE-2.0.txt)"
+}

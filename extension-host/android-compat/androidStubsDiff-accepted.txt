@@ -1,0 +1,60 @@
+# Breaking differences between the generated Android stubs and the SDK android.jar they replace
+# (Suwayomi android-jar 1.0.0), both filtered like filteredAndroidStubs. Every other breaking
+# difference fails `./gradlew :android-compat:androidStubsDiff`.
+#
+# Not API: metalava adds these nullness annotations to SDK stubs (class retention; no bytecode
+# references them).
+MISSING_CLASS androidx.annotation.RecentlyNonNull
+MISSING_CLASS androidx.annotation.RecentlyNullable
+#
+# RecordingCanvas re-declares Canvas's methods; the API signature omits those overrides, so they
+# resolve to Canvas, which AndroidCompat implements without them. AndroidCompat's Canvas is final,
+# so RecordingCanvas cannot be loaded in the host with either jar.
+MISSING_MEMBER android.graphics.RecordingCanvas method disableZ()V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawARGB(IIII)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawArc(FFFFFFZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawArc(Landroid/graphics/RectF;FFZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/RectF;Landroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawBitmap([IIIFFIIZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawBitmap([IIIIIIIZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawBitmapMesh(Landroid/graphics/Bitmap;II[FI[IILandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawCircle(FFFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawColor(ILandroid/graphics/BlendMode;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawColor(ILandroid/graphics/PorterDuff$Mode;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawColor(JLandroid/graphics/BlendMode;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawDoubleRoundRect(Landroid/graphics/RectF;FFLandroid/graphics/RectF;FFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawDoubleRoundRect(Landroid/graphics/RectF;[FLandroid/graphics/RectF;[FLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawLine(FFFFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawLines([FIILandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawLines([FLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawOval(FFFFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawOval(Landroid/graphics/RectF;Landroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPaint(Landroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPicture(Landroid/graphics/Picture;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPicture(Landroid/graphics/Picture;Landroid/graphics/Rect;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPicture(Landroid/graphics/Picture;Landroid/graphics/RectF;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPoints([FIILandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPoints([FLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPosText(Ljava/lang/String;[FLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawPosText([CII[FLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawRGB(III)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawRect(FFFFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawRect(Landroid/graphics/Rect;Landroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawRect(Landroid/graphics/RectF;Landroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawRenderNode(Landroid/graphics/RenderNode;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawTextOnPath(Ljava/lang/String;Landroid/graphics/Path;FFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawTextOnPath([CIILandroid/graphics/Path;FFLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawTextRun(Landroid/graphics/text/MeasuredText;IIIIFFZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawTextRun(Ljava/lang/CharSequence;IIIIFFZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawTextRun([CIIIIFFZLandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method drawVertices(Landroid/graphics/Canvas$VertexMode;I[FI[FI[II[SIILandroid/graphics/Paint;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method enableZ()V
+MISSING_MEMBER android.graphics.RecordingCanvas method getHeight()I
+MISSING_MEMBER android.graphics.RecordingCanvas method getMaximumBitmapHeight()I
+MISSING_MEMBER android.graphics.RecordingCanvas method getMaximumBitmapWidth()I
+MISSING_MEMBER android.graphics.RecordingCanvas method getWidth()I
+MISSING_MEMBER android.graphics.RecordingCanvas method isHardwareAccelerated()Z
+MISSING_MEMBER android.graphics.RecordingCanvas method isOpaque()Z
+MISSING_MEMBER android.graphics.RecordingCanvas method setBitmap(Landroid/graphics/Bitmap;)V
+MISSING_MEMBER android.graphics.RecordingCanvas method setDensity(I)V

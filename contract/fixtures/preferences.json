@@ -1,0 +1,71 @@
+[
+    {
+        "type": "editText",
+        "key": "address",
+        "title": "Server address",
+        "summary": "http://",
+        "visible": true,
+        "enabled": true,
+        "dialogTitle": "Address",
+        "default": "",
+        "value": "http://10.0.0.2:5000"
+    },
+    {
+        "type": "list",
+        "key": "quality",
+        "title": "Quality",
+        "summary": "%s",
+        "visible": true,
+        "enabled": true,
+        "entries": [
+            "High",
+            "Low"
+        ],
+        "entryValues": [
+            "hq",
+            "lq"
+        ],
+        "default": "hq",
+        "value": "lq"
+    },
+    {
+        "type": "multiSelectList",
+        "key": "langs",
+        "title": "Languages",
+        "visible": true,
+        "enabled": false,
+        "entries": [
+            "English",
+            "Spanish"
+        ],
+        "entryValues": [
+            "en",
+            "es"
+        ],
+        "default": [
+            "en"
+        ],
+        "value": [
+            "en",
+            "es"
+        ]
+    },
+    {
+        "type": "switch",
+        "key": "dataSaver",
+        "title": "Data saver",
+        "visible": true,
+        "enabled": true,
+        "default": false,
+        "value": true
+    },
+    {
+        "type": "checkBox",
+        "key": "nsfw",
+        "title": "Show NSFW",
+        "visible": false,
+        "enabled": true,
+        "default": true,
+        "value": true
+    }
+]

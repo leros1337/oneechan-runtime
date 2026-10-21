@@ -1,0 +1,11 @@
+# HotSpot Zero options for the embedded extension host (DEVELOPMENT ONLY: HotSpot is GPLv2 without
+# the Classpath Exception and must never ship in a distributed build). jvm-ios/package.sh bundles
+# this file as jre/lib/oneechan-jvm.options; it equals JVMOptions.hotSpot plus -Xshare:off.
+-XX:+UseSerialGC
+-XX:-UsePerfData
+-XX:ErrorFile=${cacheDir}/hs_err_%p.log
+# Extensions are R8-optimized for ART and fail the JVM verifier.
+-XX:+UnlockDiagnosticVMOptions
+-XX:-BytecodeVerificationRemote
+# A cross-built image has no CDS archive.
+-Xshare:off

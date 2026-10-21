@@ -1,0 +1,9 @@
+{
+    "event": "ext.progress",
+    "data": {
+        "jobId": "job-1",
+        "pkgName": "eu.kanade.tachiyomi.extension.all.kavita",
+        "phase": "CONVERT",
+        "fraction": 0.5
+    }
+}

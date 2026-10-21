@@ -1,0 +1,18 @@
+diff --git a/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp b/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
+index 94d3260c4..96578a2ad 100644
+--- a/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
++++ b/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
+@@ -274,6 +274,13 @@ int os::extra_bang_size_in_bytes() {
+ }
+ 
+ #if defined(AARCH64) && defined(__APPLE__)
++// Zero never generates code, so there is no MAP_JIT region whose W^X state
++// matters. Provide the symbols that shared code expects on macOS/iOS-AArch64
++// (normally defined in os_cpu/bsd_aarch64, which Zero does not compile).
++WXMode DefaultWXWriteMode = WXWrite;
++THREAD_LOCAL bool os::_jit_exec_enabled = false;
++void os::thread_wx_enable_write_impl() {}
++
+ void os::current_thread_enable_wx(WXMode mode) {
+ #ifndef __IOS__
+   pthread_jit_write_protect_np(mode == WXExec);

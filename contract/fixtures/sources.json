@@ -1,0 +1,12 @@
+[
+    {
+        "id": "7266875667263635239",
+        "name": "Kavita (1)",
+        "lang": "all",
+        "pkgName": "eu.kanade.tachiyomi.extension.all.kavita",
+        "supportsLatest": true,
+        "isConfigurable": true,
+        "contentWarning": "SAFE",
+        "versionId": 1
+    }
+]

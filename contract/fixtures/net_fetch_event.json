@@ -1,0 +1,21 @@
+{
+    "id": "f1",
+    "url": "https://site.test/page?q=1",
+    "method": "POST",
+    "headers": [
+        [
+            "User-Agent",
+            "UA/1"
+        ],
+        [
+            "Cookie",
+            "a=1"
+        ],
+        [
+            "Cookie",
+            "b=2"
+        ]
+    ],
+    "bodyBase64": "e30=",
+    "timeoutMillis": 30000
+}
