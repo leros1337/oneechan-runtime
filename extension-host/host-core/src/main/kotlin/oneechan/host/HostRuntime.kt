@@ -4,6 +4,7 @@ import android.os.Looper
 import eu.kanade.tachiyomi.App
 import eu.kanade.tachiyomi.createAppModule
 import io.github.oshai.kotlinlogging.KotlinLogging
+import oneechan.host.platform.AndroidCiphers
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import xyz.nulldev.androidcompat.AndroidCompat
@@ -41,6 +42,8 @@ object HostRuntime {
         }
         AndroidCompatInitializer().init()
         AndroidCompat().startApp(app)
+        // Cipher names Android has and the JDK lacks (PKCS7Padding, ZeroBytePadding).
+        AndroidCiphers.install()
 
         bootedRoot = root
         logger.info { "Extension host runtime booted (compat root $root)" }
