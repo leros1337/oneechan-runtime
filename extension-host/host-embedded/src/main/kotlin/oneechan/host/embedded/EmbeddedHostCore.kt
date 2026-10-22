@@ -32,6 +32,8 @@ class EmbeddedHostCore(
     config: EmbeddedConfig,
     private val reply: (Long, ByteArray) -> Unit,
     private val emit: (ByteArray) -> Unit,
+    /** `debug.*` self-tests (one evaluates any script): Debug builds and tests only (`-Doneechan.diagnostics=true`). */
+    private val diagnostics: Boolean = System.getProperty("oneechan.diagnostics") == "true",
 ) {
     private val host: ExtensionHost =
         ExtensionHost(
@@ -51,7 +53,13 @@ class EmbeddedHostCore(
         scope.launch {
             val response =
                 try {
-                    dispatcher.dispatch(json.decodeFromString(RpcRequest.serializer(), request.decodeToString()))
+                    val decoded = json.decodeFromString(RpcRequest.serializer(), request.decodeToString())
+                    when {
+                        diagnostics && GraphicsDiagnostics.handles(decoded.method) -> GraphicsDiagnostics.call(decoded)
+                        diagnostics && JsDiagnostics.handles(decoded.method) -> JsDiagnostics.call(decoded)
+                        diagnostics && WebViewDiagnostics.handles(decoded.method) -> WebViewDiagnostics.call(decoded)
+                        else -> dispatcher.dispatch(decoded)
+                    }
                 } catch (e: Exception) {
                     RpcResponse("", error = RpcErrorDto(ErrorCode.INVALID_PARAMS, "Malformed request: ${e.message}"))
                 }
