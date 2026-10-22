@@ -34,6 +34,7 @@ val syncVendorSources = tasks.register<Sync>("syncVendorSources") {
             "eu/kanade/tachiyomi/util/storage/EpubFile.kt",
             // Overlaid (see src/overlay/kotlin).
             "eu/kanade/tachiyomi/network/NetworkHelper.kt",
+            "eu/kanade/tachiyomi/network/PersistentCookieStore.kt",
             "eu/kanade/tachiyomi/network/interceptor/CloudflareInterceptor.kt",
             "eu/kanade/tachiyomi/network/interceptor/UserAgentInterceptor.kt",
         )
