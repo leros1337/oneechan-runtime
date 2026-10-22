@@ -3,7 +3,7 @@ package oneechan.host.platform
 import android.webkit.WebViewProvider
 import java.lang.reflect.Proxy
 
-/** Fallback used until a real WebView backend is registered: every call fails loudly. */
+/** Fallback when no app runs WebViews (desktop host without an app, plain JVM tests): every call fails loudly. */
 object UnsupportedWebViewBackend : WebViewBackend {
     override fun createProvider(view: android.webkit.WebView): WebViewProvider =
         Proxy.newProxyInstance(
