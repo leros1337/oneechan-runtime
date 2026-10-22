@@ -17,6 +17,13 @@
 local.properties
 secrets.properties
 
+# Backups (personal library data): Mihon/Komikku .tachibk, Tachimanga .tmb.
+# Only the synthetic fixtures are tracked.
+*.tachibk
+*.tmb
+!contract/fixtures/backup/*.tachibk
+!contract/fixtures/backup/*.tmb
+
 # Gradle / Kotlin
 .gradle/
 .kotlin/
@@ -24,17 +31,15 @@ build/
 out/
 !**/src/**/build/
 
-# Xcode (jvm-ios spike and smoke apps)
+# Xcode (local projects and build output)
 *.xcodeproj/
 DerivedData/
 .build/
 xcuserdata/
 *.xcresult
 
-# JVM build work tree (downloads, clones, builds; see jvm-ios/README.md) and packaged output
+# JVM build work tree (downloads, clones, builds; see jvm-ios/README.md)
 jvm-ios/work/
-jvm-ios/dist/
-*.xcframework/
 
 # Python tooling
 __pycache__/
