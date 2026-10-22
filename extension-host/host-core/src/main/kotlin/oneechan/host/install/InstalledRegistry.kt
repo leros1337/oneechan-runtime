@@ -36,9 +36,7 @@ data class InstalledRecord(
     val isExternal: Boolean = false,
     val sources: List<InstalledSourceRecord> = emptyList(),
     val installedAt: Long,
-) {
-    val libVersionNumber: Double get() = libVersion.toDoubleOrNull() ?: 0.0
-}
+)
 
 class InstalledRegistry(
     stateDir: Path,

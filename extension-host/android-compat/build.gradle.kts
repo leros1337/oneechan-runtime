@@ -20,6 +20,15 @@ private val vendorExcludes =
         "xyz/nulldev/androidcompat/AndroidCompatInitializer.kt",
         "app/cash/quickjs/QuickJs.java",
         "androidx/preference/Preference.java",
+        // android.graphics on a GraphicsBackend (native CoreGraphics on iOS, AWT on desktop).
+        "android/graphics/Bitmap.java",
+        "android/graphics/BitmapFactory.java",
+        "android/graphics/Canvas.java",
+        "android/graphics/Paint.java",
+        "android/graphics/Rect.java",
+        "android/graphics/Typeface.java",
+        "android/text/StaticLayout.java",
+        "android/text/TextLine.java",
     )
 
 // Exclude patterns on a SourceDirectorySet apply to every root (including the overlay), so the
@@ -75,44 +84,6 @@ val filteredAndroidStubs =
         stripImplemented(androidStubs)
     }
 
-// Verification only (never on a runtime classpath): the SDK android.jar the stubs replace (Suwayomi
-// android-jar 1.0.0, not redistributable), filtered the same way, compared class file by class file:
-//   ./gradlew :android-compat:androidStubsDiff   (report: build/reports/android-stubs-diff.txt)
-val legacyAndroidStubs = configurations.create("legacyAndroidStubs") { isTransitive = false }
-val apiDiffTool = configurations.create("apiDiffTool")
-
-val filteredLegacyAndroidStubs =
-    tasks.register<Jar>("filteredLegacyAndroidStubs") {
-        archiveFileName = "android-jar-legacy-filtered.jar"
-        destinationDirectory = layout.buildDirectory.dir("stubs-diff")
-        stripImplemented(legacyAndroidStubs)
-        include("android/**", "dalvik/**", "androidx/**")
-    }
-
-tasks.register<JavaExec>("androidStubsDiff") {
-    group = "verification"
-    description = "Compares the generated Android stubs with the SDK android.jar they replace."
-    val report = layout.buildDirectory.file("reports/android-stubs-diff.txt")
-    val accepted = layout.projectDirectory.file("androidStubsDiff-accepted.txt")
-    val implementations = sourceSets.main.get().output.classesDirs
-    classpath = apiDiffTool
-    mainClass = "oneechan.stubs.ApiDiffKt"
-    inputs.files(filteredAndroidStubs, filteredLegacyAndroidStubs, implementations, accepted)
-    outputs.file(report)
-    argumentProviders +=
-        CommandLineArgumentProvider {
-            listOf(
-                "--old", filteredLegacyAndroidStubs.get().archiveFile.get().asFile.absolutePath,
-                "--new", filteredAndroidStubs.get().archiveFile.get().asFile.absolutePath,
-                // AndroidCompat's classes replace the stripped stubs at runtime: resolve inherited members there.
-                "--classpath", implementations.asPath,
-                "--report", report.get().asFile.absolutePath,
-                "--allow", accepted.asFile.absolutePath,
-                "--fail-on-breaking",
-            )
-        }
-}
-
 tasks.test {
     // AndroidStubsOverlapTest: the filtered stubs and AndroidCompat's classes must not overlap.
     inputs.files(filteredAndroidStubs)
@@ -149,8 +120,6 @@ dependencies {
     // Android stub library (generated android.jar equivalent minus the classes AndroidCompat implements).
     androidStubs(project(":android-stubs"))
     api(files(filteredAndroidStubs))
-    legacyAndroidStubs(libs.android.stubs)
-    apiDiffTool(project(path = ":android-stubs", configuration = "stubTools"))
 
     compileOnly(libs.xmlpull)
     compileOnly(libs.apksig)
@@ -159,8 +128,8 @@ dependencies {
     api(libs.bundles.settings)
     api(libs.icu4j)
 
-    // Desktop-only image codecs used by the vendored AWT-backed android.graphics.
-    // Replaced by the native (CoreGraphics) backend in milestone M3.
+    // Image codecs of the AWT graphics backend (desktop host, JVM tests). On iOS android.graphics
+    // runs on the native CoreGraphics/ImageIO backend and these are never loaded.
     implementation(libs.bundles.twelvemonkeys)
     implementation(libs.imageio.webp)
 

@@ -2,7 +2,7 @@
 // in api/ (AOSP frameworks/base api/current.txt at android-11.0.0_r1, see api/METADATA). It replaces
 // the repackaged SDK android.jar, whose licence does not allow redistribution.
 //
-//   src/generator  signature parser, Java stub writer and the ApiDiff jar comparison tool (Kotlin)
+//   src/generator  signature parser and Java stub writer (Kotlin)
 //   main           the generated stub sources, compiled with javac to Java 8 class files like android.jar
 //   test           tests of the generator and of the generated jar
 plugins {
@@ -85,18 +85,6 @@ tasks.jar {
     }
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
-}
-
-// The generator and ApiDiff on a classpath, for :android-compat's androidStubsDiff task.
-val generatorJar =
-    tasks.register<Jar>("generatorJar") {
-        archiveBaseName = "android-stubs-generator"
-        archiveVersion = ""
-        from(generator.output)
-    }
-configurations.consumable("stubTools") {
-    extendsFrom(configurations["generatorImplementation"])
-    outgoing.artifact(generatorJar)
 }
 
 tasks.test {

@@ -140,15 +140,3 @@ fun readClasses(path: Path): Map<String, ClassInfo> {
     }
     return out
 }
-
-/** Looks classes up in jars/directories first, then in the running JDK. */
-class ClassResolver(private val sources: List<Map<String, ClassInfo>>) {
-    private val jdk = HashMap<String, ClassInfo?>()
-
-    fun find(name: String): ClassInfo? {
-        for (source in sources) source[name]?.let { return it }
-        return jdk.getOrPut(name) {
-            ClassLoader.getPlatformClassLoader().getResourceAsStream("$name.class")?.use { readClassInfo(it.readBytes()) }
-        }
-    }
-}

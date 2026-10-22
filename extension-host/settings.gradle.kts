@@ -17,7 +17,6 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
         google()
-        maven("https://github.com/Suwayomi/Suwayomi-Server/raw/android-jar/")
         maven("https://jitpack.io")
     }
 }
