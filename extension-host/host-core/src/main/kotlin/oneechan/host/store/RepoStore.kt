@@ -9,7 +9,9 @@ import kotlinx.serialization.json.Json
 import oneechan.host.rpc.AvailableExtensionDto
 import oneechan.host.rpc.AvailableSourceDto
 import oneechan.host.rpc.ContentWarningDto
+import oneechan.host.rpc.ErrorCode
 import oneechan.host.rpc.RepoDto
+import oneechan.host.rpc.RpcException
 import oneechan.host.util.AtomicJsonFile
 import suwayomi.tachidesk.manga.model.dataclass.ContentWarning
 import suwayomi.tachidesk.manga.model.dataclass.ExtensionInfo
@@ -27,11 +29,10 @@ data class RepoRecord(
     val discord: String? = null,
     val isLegacy: Boolean,
     val extensionListUrl: String? = null,
+    /** Komikku "disable repo"; repos saved before the flag existed are enabled. */
+    val enabled: Boolean = true,
 ) {
-    fun toStore() =
-        ExtensionStore(indexUrl, name, badgeLabel, signingKeyFingerprint, ExtensionStore.Contact(website, discord), isLegacy, extensionListUrl)
-
-    fun toDto() = RepoDto(indexUrl, name, badgeLabel, signingKeyFingerprint, website, discord, isLegacy)
+    fun toDto() = RepoDto(indexUrl, name, badgeLabel, signingKeyFingerprint, website, discord, isLegacy, enabled)
 
     companion object {
         fun from(store: ExtensionStore) =
@@ -68,11 +69,34 @@ class RepoStore(
 
     fun repos(): List<RepoRecord> = reposFile.read()
 
-    fun available(): List<AvailableExtensionDto> = availableFile.read()
+    /** The index URLs of the repos the user turned off. */
+    fun disabledIndexUrls(): Set<String> = repos().filterNot { it.enabled }.map { it.indexUrl }.toSet()
 
+    /** What the enabled repos offer (a disabled repo's cached list is kept for when it is turned on again). */
+    fun available(): List<AvailableExtensionDto> {
+        val disabled = disabledIndexUrls()
+        return availableFile.read().filterNot { it.repoIndexUrl in disabled }
+    }
+
+    /** Every repo's offers, with the disabled ones marked, for update checks of installed extensions. */
+    fun offers(): RepoOffers = RepoOffers(availableFile.read(), disabledIndexUrls())
+
+    /** Every repo's key, disabled or not: extensions installed from a disabled repo stay trusted. */
     fun fingerprints(): Set<String> = repos().map { it.signingKeyFingerprint.lowercase() }.filter { it.isNotBlank() }.toSet()
 
-    /** The newest offer of [pkgName], preferring [repoIndexUrl] when given. */
+    suspend fun setEnabled(
+        indexUrl: String,
+        enabled: Boolean,
+    ): RepoRecord =
+        mutex.withLock {
+            val repos = repos()
+            val record = repos.find { it.indexUrl == indexUrl } ?: throw RpcException(ErrorCode.NOT_FOUND, "Repo $indexUrl is not configured")
+            val updated = record.copy(enabled = enabled)
+            reposFile.write(repos.map { if (it.indexUrl == indexUrl) updated else it })
+            updated
+        }
+
+    /** The newest offer of [pkgName] from an enabled repo, preferring [repoIndexUrl] when given. */
     fun findAvailable(
         pkgName: String,
         repoIndexUrl: String? = null,
@@ -86,7 +110,9 @@ class RepoStore(
         mutex.withLock {
             val store = client.fetchStore(url.trim())
             val extensions = client.fetchExtensions(store)
-            val record = RepoRecord.from(store)
+            // Adding a repo again (or restoring it from a backup) keeps it turned off if it was.
+            val wasEnabled = repos().find { it.indexUrl == store.indexUrl }?.enabled ?: true
+            val record = RepoRecord.from(store).copy(enabled = wasEnabled)
             reposFile.update { repos -> repos.filterNot { it.indexUrl == record.indexUrl } + record }
             availableFile.update { list -> list.filterNot { it.repoIndexUrl == record.indexUrl } + extensions.map { it.toDto() } }
             record
@@ -102,8 +128,13 @@ class RepoStore(
         mutex.withLock {
             val failed = mutableListOf<String>()
             val refreshed = mutableListOf<RepoRecord>()
-            val available = available().toMutableList()
+            val available = availableFile.read().toMutableList()
             for (repo in repos()) {
+                // A disabled repo isn't checked: its record and cached list stay as they are.
+                if (!repo.enabled) {
+                    refreshed += repo
+                    continue
+                }
                 try {
                     val store = client.fetchStore(repo.indexUrl)
                     val extensions = client.fetchExtensions(store)
@@ -121,8 +152,47 @@ class RepoStore(
             val repos = refreshed.distinctBy { it.indexUrl }
             reposFile.write(repos)
             availableFile.write(available)
-            RefreshOutcome(repos, available.size, failed)
+            val disabled = repos.filterNot { it.enabled }.map { it.indexUrl }.toSet()
+            RefreshOutcome(repos, available.count { it.repoIndexUrl !in disabled }, failed)
         }
+}
+
+data class UpdateState(
+    val hasUpdate: Boolean,
+    val isObsolete: Boolean,
+)
+
+/** Every repo's offers; [disabled] repos are not checked for updates. */
+class RepoOffers(
+    all: List<AvailableExtensionDto>,
+    private val disabled: Set<String>,
+) {
+    private val byPackage = all.groupBy { it.pkgName }
+
+    /**
+     * An installed extension has an update when an enabled repo offers a newer version (its own repo
+     * first) and that repo isn't disabled. It is obsolete when no repo, enabled or not, offers it
+     * any more, so turning a repo off never flags what was installed from it.
+     */
+    fun updateState(
+        pkgName: String,
+        versionCode: Long,
+        repoIndexUrl: String?,
+        isExternal: Boolean,
+    ): UpdateState {
+        val offers = byPackage[pkgName].orEmpty()
+        val newestAnywhere = newest(offers, repoIndexUrl)
+        val newestEnabled = if (repoIndexUrl != null && repoIndexUrl in disabled) null else newest(offers.filterNot { it.repoIndexUrl in disabled }, repoIndexUrl)
+        return UpdateState(
+            hasUpdate = newestEnabled != null && newestEnabled > versionCode,
+            isObsolete = !isExternal && (newestAnywhere == null || newestAnywhere < versionCode),
+        )
+    }
+
+    private fun newest(
+        offers: List<AvailableExtensionDto>,
+        repoIndexUrl: String?,
+    ): Long? = offers.filter { repoIndexUrl == null || it.repoIndexUrl == repoIndexUrl }.ifEmpty { offers }.maxOfOrNull { it.versionCode }
 }
 
 fun ContentWarning.toDto(): ContentWarningDto =

@@ -1,0 +1,16 @@
+{
+    "viewId": "v1",
+    "event": {
+        "type": "error",
+        "request": {
+            "url": "https://site.test/",
+            "method": "GET",
+            "headers": {},
+            "isForMainFrame": true,
+            "hasGesture": false,
+            "isRedirect": false
+        },
+        "errorCode": -2,
+        "description": "A server with the specified hostname could not be found."
+    }
+}

@@ -4,5 +4,6 @@
     "badgeLabel": "Keiyoushi",
     "signingKeyFingerprint": "9add655a",
     "website": "https://keiyoushi.github.io",
-    "isLegacy": false
+    "isLegacy": false,
+    "enabled": true
 }

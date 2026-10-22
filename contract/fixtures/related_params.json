@@ -1,0 +1,18 @@
+{
+    "sourceId": "7266875667263635239",
+    "manga": {
+        "url": "/manga/9906dfa8",
+        "title": "Frieren: Beyond Journey's End",
+        "artist": "Abe Tsukasa",
+        "author": "Yamada Kanehito",
+        "description": "An elf mage...",
+        "genre": "Adventure, Fantasy",
+        "status": 1,
+        "thumbnailUrl": "https://uploads.mangadex.org/covers/x.jpg",
+        "updateStrategy": "ALWAYS_UPDATE",
+        "initialized": true,
+        "memo": {
+            "mdId": "b0b721ff"
+        }
+    }
+}

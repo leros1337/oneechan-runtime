@@ -1,0 +1,13 @@
+{
+    "viewId": "v1",
+    "request": {
+        "url": "https://api.site.test/v1",
+        "method": "POST",
+        "headers": {
+            "Accept": "application/json"
+        },
+        "isForMainFrame": false,
+        "hasGesture": false,
+        "isRedirect": false
+    }
+}

@@ -1,6 +1,7 @@
 package oneechan.host
 
 import android.app.Application
+import android.content.Context
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -16,6 +17,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.float
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.Headers
 import okhttp3.Response
@@ -30,9 +37,13 @@ import oneechan.host.net.RpcChallengeSolver
 import oneechan.host.net.RpcNativeNet
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import oneechan.host.platform.Platform
+import oneechan.host.platform.Graphics
+import oneechan.host.platform.JsEngines
+import oneechan.host.platform.WebViewBackends
 import oneechan.host.rpc.AvailableExtensionDto
 import oneechan.host.rpc.AcceptedDto
+import oneechan.host.rpc.ImportedDto
+import oneechan.host.rpc.PreferencesImportParams
 import oneechan.host.rpc.BrowseParams
 import oneechan.host.rpc.ChallengeResolvedParams
 import oneechan.host.rpc.CookieDto
@@ -63,6 +74,7 @@ import oneechan.host.rpc.PageDto
 import oneechan.host.rpc.PageParams
 import oneechan.host.rpc.PreferenceDto
 import oneechan.host.rpc.RepoDto
+import oneechan.host.rpc.RepoEnabledParams
 import oneechan.host.rpc.RepoRefreshResult
 import oneechan.host.rpc.RpcEvent
 import oneechan.host.rpc.RpcException
@@ -75,6 +87,8 @@ import oneechan.host.rpc.toRpcError
 import oneechan.host.source.FilterCodec
 import oneechan.host.source.PreferenceCodec
 import oneechan.host.source.SourceCalls
+import oneechan.host.source.RelatedCalls
+import oneechan.host.rpc.RelatedMangasDto
 import oneechan.host.source.SourceRegistry
 import oneechan.host.source.toDto
 import oneechan.host.source.toPage
@@ -82,6 +96,7 @@ import oneechan.host.source.toSChapter
 import oneechan.host.source.toSManga
 import oneechan.host.store.ExtensionStoreClient
 import oneechan.host.store.RepoStore
+import oneechan.host.webview.RpcWebViewHost
 import suwayomi.tachidesk.manga.impl.util.PackageTools
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -140,11 +155,13 @@ class ExtensionHost(
             libVersionMin = PackageTools.LIB_VERSION_MIN,
             libVersionMax = PackageTools.LIB_VERSION_MAX,
             jvm = "${System.getProperty("java.vm.name")} ${System.getProperty("java.version")}",
-            capabilities = listOf("repo.index.pb", "repo.legacy", "ext.installFile", "lib.legacyDispatch", "cloudflare.solver", "net.native", "net.cookies"),
+            capabilities = listOf("repo.index.pb", "repo.legacy", "ext.installFile", "lib.legacyDispatch", "cloudflare.solver", "net.native", "net.cookies", "webview", "source.related"),
+            engines = mapOf("js" to JsEngines.name, "graphics" to Graphics.backend().name, "webview" to WebViewBackends.name),
         )
 
     private val rpcNativeNet by lazy { RpcNativeNet(events, json, appConnected) }
     private val rpcChallengeSolver by lazy { RpcChallengeSolver(events, json, ::storeCookies) }
+    private val rpcWebViewHost by lazy { RpcWebViewHost(events, json, appConnected) }
 
     fun init(params: InitParams) {
         params.replaceAndroidUserAgents?.let { NetworkPlatform.replaceAndroidUserAgents = it }
@@ -153,6 +170,8 @@ class ExtensionHost(
         params.nativeNet?.let { enabled -> NetworkPlatform.nativeNet = if (enabled) platformNativeNet ?: rpcNativeNet else null }
         // An app is connected: it can solve challenges hit on the JVM-network path too.
         NetworkPlatform.challengeSolver = rpcChallengeSolver
+        // The app runs extension WebViews on WKWebView (webview.* events and RPCs).
+        params.webView?.let { enabled -> WebViewBackends.host = if (enabled) rpcWebViewHost else null }
     }
 
     fun fetchResult(params: NetFetchResultParams): AcceptedDto = AcceptedDto(rpcNativeNet.complete(params))
@@ -208,6 +227,9 @@ class ExtensionHost(
 
     suspend fun repoRemove(url: String) = repos.remove(url)
 
+    /** Komikku "disable repo": its extensions leave the available list and aren't checked for updates. */
+    suspend fun repoSetEnabled(params: RepoEnabledParams): RepoDto = withContext(Dispatchers.IO) { repos.setEnabled(params.url, params.enabled).toDto() }
+
     suspend fun repoRefresh(): RepoRefreshResult =
         withContext(Dispatchers.IO) {
             val outcome = repos.refresh()
@@ -223,15 +245,11 @@ class ExtensionHost(
             .filter { params.includeNsfw || it.contentWarning == oneechan.host.rpc.ContentWarningDto.SAFE }
 
     fun extListInstalled(): List<InstalledExtensionDto> {
-        val offers = repos.available().groupBy { it.pkgName }
+        // Disabled repos give no updates, and turning one off doesn't make its extensions obsolete.
+        val offers = repos.offers()
         return installed.all().map { record ->
-            val pkgOffers = offers[record.pkgName].orEmpty()
-            val relevant = pkgOffers.filter { record.repoIndexUrl == null || it.repoIndexUrl == record.repoIndexUrl }.ifEmpty { pkgOffers }
-            val newest = relevant.maxOfOrNull { it.versionCode }
-            record.toDto(
-                hasUpdate = newest != null && newest > record.versionCode,
-                isObsolete = !record.isExternal && (newest == null || newest < record.versionCode),
-            )
+            val state = offers.updateState(record.pkgName, record.versionCode, record.repoIndexUrl, record.isExternal)
+            record.toDto(hasUpdate = state.hasUpdate, isObsolete = state.isObsolete)
         }
     }
 
@@ -387,6 +405,9 @@ class ExtensionHost(
 
     suspend fun mangaUrl(params: MangaParams): UrlDto = io { UrlDto(httpSource(params.sourceId).getMangaUrl(params.manga.toSManga())) }
 
+    /** Komikku's related titles from the source website (keiyoushi lib 1.6 `fetchRelatedMangaList`). */
+    suspend fun related(params: MangaParams): RelatedMangasDto = io { RelatedCalls.related(source(params.sourceId), params.manga.toSManga()) }
+
     suspend fun chapterUrl(params: ChapterParams): UrlDto = io { UrlDto(httpSource(params.sourceId).getChapterUrl(params.chapter.toSChapter())) }
 
     suspend fun headers(sourceId: String): HeadersDto =
@@ -421,6 +442,38 @@ class ExtensionHost(
             SetPreferenceResult(accepted, PreferenceCodec.encode(preferenceScreen(fresh).preferences))
         }
 
+    /**
+     * Mihon `restoreSourcePreferences`: values are written as they are, also for sources that aren't
+     * installed yet, so they apply once the extension is installed.
+     */
+    suspend fun importPreferences(params: PreferencesImportParams): ImportedDto =
+        io {
+            val application = Injekt.get<Application>()
+            var imported = 0
+            for (source in params.sources) {
+                val sourceId = SOURCE_KEY.matchEntire(source.sourceKey)?.groupValues?.get(1)?.toLongOrNull() ?: continue
+                val editor = application.getSharedPreferences(source.sourceKey, Context.MODE_PRIVATE).edit()
+                for (pref in source.values) {
+                    val value = pref.value
+                    runCatching {
+                        when (pref.type) {
+                            "boolean" -> editor.putBoolean(pref.key, value.jsonPrimitive.boolean)
+                            "int" -> editor.putInt(pref.key, value.jsonPrimitive.int)
+                            "long" -> editor.putLong(pref.key, value.jsonPrimitive.long)
+                            "float" -> editor.putFloat(pref.key, value.jsonPrimitive.float)
+                            "string" -> editor.putString(pref.key, value.jsonPrimitive.content)
+                            "stringSet" -> editor.putStringSet(pref.key, value.jsonArray.map { it.jsonPrimitive.content }.toSet())
+                            else -> return@runCatching
+                        }
+                        imported++
+                    }.onFailure { logger.warn { "Skipped preference ${pref.key} of ${source.sourceKey}: ${it.message}" } }
+                }
+                editor.commit()
+                installed.bySourceId(sourceId)?.let(registry::reset)
+            }
+            ImportedDto(imported)
+        }
+
     private fun preferenceScreen(source: ConfigurableSource): PreferenceScreen {
         val screen = PreferenceScreen(Injekt.get<Application>())
         screen.sharedPreferences = source.sourcePreferences()
@@ -432,5 +485,6 @@ class ExtensionHost(
 
     companion object {
         const val HOST_VERSION = "0.1.0"
+        private val SOURCE_KEY = Regex("source_(-?\\d+)")
     }
 }

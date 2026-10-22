@@ -1,0 +1,16 @@
+{
+    "supported": true,
+    "mangas": [
+        {
+            "url": "/manga/witch-hat",
+            "title": "Witch Hat Atelier",
+            "status": 0,
+            "thumbnailUrl": "https://site.test/covers/witch-hat.jpg",
+            "updateStrategy": "ALWAYS_UPDATE",
+            "initialized": false,
+            "memo": {}
+        }
+    ],
+    "disabled": false,
+    "searchDisabled": true
+}

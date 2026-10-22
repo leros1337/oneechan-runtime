@@ -1,0 +1,8 @@
+{
+    "viewId": "v1",
+    "event": {
+        "type": "evaluateResult",
+        "requestId": 3,
+        "value": "\"token\""
+    }
+}

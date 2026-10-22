@@ -3,6 +3,7 @@ package oneechan.host.rpc
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -80,8 +81,15 @@ class ContractFixturesTest {
             RpcEvent.serializer(),
             RpcEvent("ext.progress", json.encodeToJsonElement(ExtProgressEvent.serializer(), ExtProgressEvent("job-1", "eu.kanade.tachiyomi.extension.all.kavita", InstallPhase.CONVERT, 0.5))),
         )
-        fixture("hello", HelloResult.serializer(), HelloResult(1, "0.1.0", 1.3, 1.6, "OpenJDK 64-Bit Server VM 21", listOf("repo.index.pb")))
+        fixture("hello", HelloResult.serializer(), HelloResult(1, "0.1.0", 1.3, 1.6, "OpenJDK 64-Bit Server VM 21", listOf("repo.index.pb"), mapOf("js" to "javascriptcore", "graphics" to "native")))
         fixture("repo", RepoDto.serializer(), RepoDto("https://github.com/keiyoushi/extensions/raw/repo/index.pb", "Keiyoushi", "Keiyoushi", "9add655a", "https://keiyoushi.github.io", null, false))
+        // repo.setEnabled: its params, and the repo it returns.
+        fixture("repo_set_enabled", RepoEnabledParams.serializer(), RepoEnabledParams("https://raw.githubusercontent.com/Kareadita/tach-extension/repo/repo.json", false))
+        fixture(
+            "repo_disabled",
+            RepoDto.serializer(),
+            RepoDto("https://raw.githubusercontent.com/Kareadita/tach-extension/repo/repo.json", "Kavita Extension Repo", "Kavita", "5887aee6", "https://www.kavitareader.com/", null, true, enabled = false),
+        )
         fixture(
             "available_extensions",
             ListSerializer(AvailableExtensionDto.serializer()),
@@ -159,5 +167,88 @@ class ContractFixturesTest {
                 PreferenceDto.CheckBox("nsfw", "Show NSFW", null, false, true, true, true),
             ),
         )
+        fixture(
+            "preferences_import",
+            PreferencesImportParams.serializer(),
+            PreferencesImportParams(
+                listOf(
+                    SourcePreferencesDto(
+                        "source_$bigId",
+                        listOf(
+                            PreferenceValueDto("dataSaver", "boolean", JsonPrimitive(true)),
+                            PreferenceValueDto("pageSize", "int", JsonPrimitive(30)),
+                            PreferenceValueDto("since", "long", JsonPrimitive(1_700_000_000_000)),
+                            PreferenceValueDto("ratio", "float", JsonPrimitive(1.5f)),
+                            PreferenceValueDto("quality", "string", JsonPrimitive("hq")),
+                            PreferenceValueDto("langs", "stringSet", JsonArray(listOf(JsonPrimitive("en"), JsonPrimitive("es")))),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        fixture("imported", ImportedDto.serializer(), ImportedDto(6))
+    }
+
+    @Test
+    fun `webview contract fixtures`() {
+        val config =
+            WebViewConfigDto(
+                userAgent = "UA/1",
+                interceptRequests = true,
+                consoleMessages = true,
+                javascriptInterfaces = listOf(JavascriptInterfaceDto("Bridge", listOf(JavascriptMethodDto("post"), JavascriptMethodDto("sum", returnsValue = true)))),
+            )
+        fixture(
+            "webview_command_load",
+            WebViewCommandEvent.serializer(),
+            WebViewCommandEvent("v1", WebViewCommandDto.Load("https://site.test/", mapOf("Referer" to "https://site.test/"), config = config)),
+        )
+        fixture(
+            "webview_command_load_data",
+            WebViewCommandEvent.serializer(),
+            WebViewCommandEvent("v1", WebViewCommandDto.LoadData("<p>hi</p>", "https://mangalib.me", "text/html", "UTF-8", config = WebViewConfigDto("UA/1"))),
+        )
+        fixture("webview_command_evaluate", WebViewCommandEvent.serializer(), WebViewCommandEvent("v1", WebViewCommandDto.Evaluate(3, "localStorage.getItem(\"auth\")")))
+        fixture("webview_command_destroy", WebViewCommandEvent.serializer(), WebViewCommandEvent("v1", WebViewCommandDto.Destroy))
+        fixture(
+            "webview_event_page_finished",
+            WebViewEventParams.serializer(),
+            WebViewEventParams("v1", WebViewEventDto.PageFinished("https://site.test/", WebViewStateDto("https://site.test/", "Site", 100, canGoBack = true))),
+        )
+        fixture("webview_event_evaluate_result", WebViewEventParams.serializer(), WebViewEventParams("v1", WebViewEventDto.EvaluateResult(3, "\"token\"")))
+        fixture(
+            "webview_event_error",
+            WebViewEventParams.serializer(),
+            WebViewEventParams("v1", WebViewEventDto.ReceivedError(WebRequestDto("https://site.test/"), -2, "A server with the specified hostname could not be found.")),
+        )
+        fixture(
+            "webview_intercept_request",
+            WebViewRequestParams.serializer(),
+            WebViewRequestParams("v1", WebRequestDto("https://api.site.test/v1", "POST", mapOf("Accept" to "application/json"), isForMainFrame = false)),
+        )
+        fixture(
+            "webview_intercept_result",
+            WebViewInterceptResult.serializer(),
+            WebViewInterceptResult(WebResponseDto(201, "Created", "application/json", "utf-8", mapOf("X-From" to "jvm"), "e30=")),
+        )
+        fixture("webview_override_result", WebViewOverrideResult.serializer(), WebViewOverrideResult(true))
+        fixture("webview_js_call", WebViewJsCallParams.serializer(), WebViewJsCallParams("v1", "Bridge", "post", listOf(JsonPrimitive("{\"a\":1}"), JsonPrimitive(2))))
+        fixture("webview_js_call_result", WebViewJsCallResult.serializer(), WebViewJsCallResult(JsonPrimitive(3.5)))
+    }
+
+    /** `source.related`: the entry goes with its memo (Madara reads the id and genres from it). */
+    @Test
+    fun `related titles contract fixtures`() {
+        fixture("related_params", MangaParams.serializer(), MangaParams(bigId, manga))
+        fixture(
+            "related_mangas",
+            RelatedMangasDto.serializer(),
+            RelatedMangasDto(
+                supported = true,
+                mangas = listOf(MangaDto("/manga/witch-hat", "Witch Hat Atelier", thumbnailUrl = "https://site.test/covers/witch-hat.jpg")),
+                searchDisabled = true,
+            ),
+        )
+        fixture("related_unsupported", RelatedMangasDto.serializer(), RelatedMangasDto(supported = false))
     }
 }

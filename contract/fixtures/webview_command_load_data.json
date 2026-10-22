@@ -1,0 +1,19 @@
+{
+    "viewId": "v1",
+    "command": {
+        "type": "loadData",
+        "data": "<p>hi</p>",
+        "baseUrl": "https://mangalib.me",
+        "mimeType": "text/html",
+        "encoding": "UTF-8",
+        "config": {
+            "userAgent": "UA/1",
+            "javaScriptEnabled": true,
+            "blockNetworkImage": false,
+            "interceptRequests": false,
+            "overrideUrlLoading": false,
+            "consoleMessages": false,
+            "javascriptInterfaces": []
+        }
+    }
+}

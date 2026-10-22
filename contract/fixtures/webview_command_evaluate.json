@@ -1,0 +1,8 @@
+{
+    "viewId": "v1",
+    "command": {
+        "type": "evaluate",
+        "requestId": 3,
+        "script": "localStorage.getItem(\"auth\")"
+    }
+}

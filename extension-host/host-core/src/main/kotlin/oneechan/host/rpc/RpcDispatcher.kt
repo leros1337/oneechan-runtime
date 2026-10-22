@@ -9,8 +9,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -18,6 +16,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
 import oneechan.host.ExtensionHost
+import oneechan.host.webview.WebViewCalls
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -42,9 +41,15 @@ class RpcDispatcher(
             put("net.cookies.set", typed<CookiesParams, Unit> { host.storeCookies(it.url, it.cookies) })
             put("net.cookies.clear", unit { host.clearCookies() })
 
+            put("webview.event", typed<WebViewEventParams, AcceptedDto> { WebViewCalls.event(it) })
+            put("webview.intercept", typed<WebViewRequestParams, WebViewInterceptResult> { WebViewCalls.intercept(it) })
+            put("webview.overrideUrl", typed<WebViewRequestParams, WebViewOverrideResult> { WebViewCalls.overrideUrl(it) })
+            put("webview.jsCall", typed<WebViewJsCallParams, WebViewJsCallResult> { WebViewCalls.jsCall(it) })
+
             put("repo.list", unit { host.repoList() })
             put("repo.add", typed<RepoUrlParams, RepoDto> { host.repoAdd(it.url) })
             put("repo.remove", typed<RepoUrlParams, Unit> { host.repoRemove(it.url) })
+            put("repo.setEnabled", typed<RepoEnabledParams, RepoDto> { host.repoSetEnabled(it) })
             put("repo.refresh", unit { host.repoRefresh() })
 
             put("ext.listAvailable", typed<ExtListAvailableParams, List<AvailableExtensionDto>> { host.extListAvailable(it) })
@@ -68,9 +73,11 @@ class RpcDispatcher(
             put("source.fetchCover", typed<CoverParams, ImageFileDto> { host.fetchCover(it) })
             put("source.mangaUrl", typed<MangaParams, UrlDto> { host.mangaUrl(it) })
             put("source.chapterUrl", typed<ChapterParams, UrlDto> { host.chapterUrl(it) })
+            put("source.related", typed<MangaParams, RelatedMangasDto> { host.related(it) })
             put("source.headers", typed<SourceIdParams, HeadersDto> { host.headers(it.sourceId) })
             put("source.preferences", typed<SourceIdParams, List<PreferenceDto>> { host.preferences(it.sourceId) })
             put("source.setPreference", typed<SetPreferenceParams, SetPreferenceResult> { host.setPreference(it) })
+            put("prefs.importAll", typed<PreferencesImportParams, ImportedDto> { host.importPreferences(it) })
         }
 
     val methods: Set<String> get() = handlers.keys + "rpc.cancel"
@@ -138,7 +145,4 @@ class RpcDispatcher(
             json.encodeToJsonElement(out, block(decoded))
         }
     }
-
-    @Suppress("unused")
-    private val keepSerializers = listOf(ListSerializer(String.serializer()))
 }

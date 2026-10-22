@@ -78,6 +78,8 @@ data class HelloResult(
     val libVersionMax: Double,
     val jvm: String,
     val capabilities: List<String>,
+    /** What runs extension code: `js` (javascriptcore or rhino) and `graphics` (native or awt). */
+    val engines: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -87,6 +89,8 @@ data class InitParams(
     val bypassEnabled: Boolean? = null,
     /** Route extension HTTP through the app's platform stack (NSURLSession + Cloudflare solver). */
     val nativeNet: Boolean? = null,
+    /** The app runs extension WebViews (`webview.*`); until then android.webkit.WebView is unsupported. */
+    val webView: Boolean? = null,
 )
 
 // ---------------------------------------------------------------------------------------------
@@ -174,11 +178,23 @@ data class RepoDto(
     val website: String,
     val discord: String? = null,
     val isLegacy: Boolean,
+    /**
+     * Komikku "disable repo": a disabled repo's extensions are not offered and not checked for
+     * updates; extensions already installed from it keep working. Absent from older hosts (true).
+     */
+    val enabled: Boolean = true,
 )
 
 @Serializable
 data class RepoUrlParams(
     val url: String,
+)
+
+/** `repo.setEnabled`: [url] is the repo's `indexUrl`. Returns the updated [RepoDto]. */
+@Serializable
+data class RepoEnabledParams(
+    val url: String,
+    val enabled: Boolean,
 )
 
 @Serializable
@@ -419,6 +435,21 @@ data class HeadersDto(
     val headers: Map<String, String>,
 )
 
+/**
+ * `source.related` (params [MangaParams]): Komikku's related titles from the source website, as
+ * keiyoushi's extension-lib 1.6 declares them on `CatalogueSource`. [supported]: the extension lists
+ * related titles itself (`supportsRelatedMangas`), and [mangas] is that list (without the entry).
+ * [disabled] (`disableRelatedMangas`): show none at all. [searchDisabled]
+ * (`disableRelatedMangasBySearch`): the extension asks apps not to look for them by searching.
+ */
+@Serializable
+data class RelatedMangasDto(
+    val supported: Boolean,
+    val mangas: List<MangaDto> = emptyList(),
+    val disabled: Boolean = false,
+    val searchDisabled: Boolean = false,
+)
+
 // ---------------------------------------------------------------------------------------------
 // Filters: positional tree mirroring eu.kanade.tachiyomi.source.model.Filter.
 
@@ -571,11 +602,6 @@ sealed class PreferenceDto {
 }
 
 @Serializable
-data class PreferencesDto(
-    val preferences: List<PreferenceDto>,
-)
-
-@Serializable
 data class SetPreferenceParams(
     val sourceId: String,
     val index: Int,
@@ -587,4 +613,248 @@ data class SetPreferenceParams(
 data class SetPreferenceResult(
     val accepted: Boolean,
     val preferences: List<PreferenceDto>,
+)
+
+/** `prefs.importAll`: source preferences from a backup (Mihon `.tachibk` or Tachimanga `.tmb`). */
+@Serializable
+data class PreferencesImportParams(
+    val sources: List<SourcePreferencesDto>,
+)
+
+@Serializable
+data class SourcePreferencesDto(
+    /** The SharedPreferences name, `source_<id>`. */
+    val sourceKey: String,
+    val values: List<PreferenceValueDto>,
+)
+
+/** One stored value; `type` is `boolean`, `int`, `long`, `float`, `string` or `stringSet` (a JSON array). */
+@Serializable
+data class PreferenceValueDto(
+    val key: String,
+    val type: String,
+    val value: JsonElement,
+)
+
+@Serializable
+data class ImportedDto(
+    val imported: Int,
+)
+
+// ---------------------------------------------------------------------------------------------
+// webview.* (android.webkit.WebView on a WKWebView in the app)
+
+/** Event `webview.command`: what the app's WebView [viewId] must do (created on the first command). */
+@Serializable
+data class WebViewCommandEvent(
+    val viewId: String,
+    val command: WebViewCommandDto,
+)
+
+@Serializable
+sealed class WebViewCommandDto {
+    /** `loadUrl` (GET with extra headers) or `postUrl` (POST with a body). */
+    @Serializable
+    @SerialName("load")
+    data class Load(
+        val url: String,
+        val headers: Map<String, String> = emptyMap(),
+        val method: String = "GET",
+        val bodyBase64: String? = null,
+        val config: WebViewConfigDto,
+    ) : WebViewCommandDto()
+
+    /** `loadData`/`loadDataWithBaseURL`: [baseUrl] is the document's URL and origin; [encoding] "base64" decodes [data]. */
+    @Serializable
+    @SerialName("loadData")
+    data class LoadData(
+        val data: String,
+        val baseUrl: String? = null,
+        val mimeType: String? = null,
+        val encoding: String? = null,
+        val historyUrl: String? = null,
+        val config: WebViewConfigDto,
+    ) : WebViewCommandDto()
+
+    @Serializable
+    @SerialName("reload")
+    data class Reload(
+        val config: WebViewConfigDto,
+    ) : WebViewCommandDto()
+
+    /** Answered by a `webview.event` `evaluateResult` with the same [requestId]. */
+    @Serializable
+    @SerialName("evaluate")
+    data class Evaluate(
+        val requestId: Long,
+        val script: String,
+    ) : WebViewCommandDto()
+
+    @Serializable
+    @SerialName("stop")
+    data object Stop : WebViewCommandDto()
+
+    @Serializable
+    @SerialName("goBack")
+    data object GoBack : WebViewCommandDto()
+
+    @Serializable
+    @SerialName("goForward")
+    data object GoForward : WebViewCommandDto()
+
+    @Serializable
+    @SerialName("destroy")
+    data object Destroy : WebViewCommandDto()
+}
+
+/** Applied before each navigation: the WebView's settings and which client callbacks are overridden. */
+@Serializable
+data class WebViewConfigDto(
+    val userAgent: String,
+    val javaScriptEnabled: Boolean = true,
+    val blockNetworkImage: Boolean = false,
+    /** Offer every request to the JVM (`webview.intercept`) before loading it. */
+    val interceptRequests: Boolean = false,
+    /** Ask the JVM before following a navigation (`webview.overrideUrl`). */
+    val overrideUrlLoading: Boolean = false,
+    /** Forward the page's console (`webview.event` `console`). */
+    val consoleMessages: Boolean = false,
+    /** `window[name]` objects whose methods call `webview.jsCall`. */
+    val javascriptInterfaces: List<JavascriptInterfaceDto> = emptyList(),
+)
+
+@Serializable
+data class JavascriptInterfaceDto(
+    val name: String,
+    val methods: List<JavascriptMethodDto>,
+)
+
+@Serializable
+data class JavascriptMethodDto(
+    val name: String,
+    /** Non-void: the page gets a Promise of the result; void methods return undefined at once. */
+    val returnsValue: Boolean = false,
+)
+
+/** RPC `webview.event`: something happened in the app's WebView (answered with [AcceptedDto]). */
+@Serializable
+data class WebViewEventParams(
+    val viewId: String,
+    val event: WebViewEventDto,
+)
+
+@Serializable
+sealed class WebViewEventDto {
+    /** The main frame committed a new document. */
+    @Serializable
+    @SerialName("pageStarted")
+    data class PageStarted(
+        val url: String,
+        val state: WebViewStateDto = WebViewStateDto(),
+    ) : WebViewEventDto()
+
+    @Serializable
+    @SerialName("pageFinished")
+    data class PageFinished(
+        val url: String,
+        val state: WebViewStateDto = WebViewStateDto(),
+    ) : WebViewEventDto()
+
+    /** A load failed; [errorCode] is a WebViewClient.ERROR_* constant. */
+    @Serializable
+    @SerialName("error")
+    data class ReceivedError(
+        val request: WebRequestDto,
+        val errorCode: Int,
+        val description: String,
+    ) : WebViewEventDto()
+
+    @Serializable
+    @SerialName("console")
+    data class Console(
+        val message: String,
+        /** tip, log, warning, error or debug. */
+        val level: String = "log",
+        val sourceId: String = "",
+        val lineNumber: Int = 0,
+    ) : WebViewEventDto()
+
+    /** [value] is the JSON of the completion value, like Android ("null" for undefined or when the script threw; null reads as "null"). */
+    @Serializable
+    @SerialName("evaluateResult")
+    data class EvaluateResult(
+        val requestId: Long,
+        val value: String? = null,
+    ) : WebViewEventDto()
+
+    @Serializable
+    @SerialName("renderProcessGone")
+    data class RenderProcessGone(
+        val didCrash: Boolean = false,
+    ) : WebViewEventDto()
+}
+
+@Serializable
+data class WebViewStateDto(
+    val url: String? = null,
+    val title: String? = null,
+    val progress: Int = 0,
+    val canGoBack: Boolean = false,
+    val canGoForward: Boolean = false,
+)
+
+@Serializable
+data class WebRequestDto(
+    val url: String,
+    val method: String = "GET",
+    val headers: Map<String, String> = emptyMap(),
+    val isForMainFrame: Boolean = true,
+    val hasGesture: Boolean = false,
+    val isRedirect: Boolean = false,
+)
+
+/** RPC `webview.intercept` (→ [WebViewInterceptResult]) and `webview.overrideUrl` (→ [WebViewOverrideResult]). */
+@Serializable
+data class WebViewRequestParams(
+    val viewId: String,
+    val request: WebRequestDto,
+)
+
+/** The WebViewClient's response; null: the app loads the request itself. */
+@Serializable
+data class WebViewInterceptResult(
+    val response: WebResponseDto? = null,
+)
+
+@Serializable
+data class WebResponseDto(
+    val statusCode: Int = 200,
+    val reasonPhrase: String = "OK",
+    val mimeType: String? = null,
+    val encoding: String? = null,
+    val headers: Map<String, String> = emptyMap(),
+    val bodyBase64: String? = null,
+)
+
+/** [handled]: shouldOverrideUrlLoading returned true, so the app cancels the navigation. */
+@Serializable
+data class WebViewOverrideResult(
+    val handled: Boolean,
+)
+
+/**
+ * RPC `webview.jsCall`: the page called `window[interfaceName][method](...args)`. Calls of void
+ * methods are sent in order with the `webview.event`s (on Android they run before the page finishes).
+ */
+@Serializable
+data class WebViewJsCallParams(
+    val viewId: String,
+    val interfaceName: String,
+    val method: String,
+    val args: List<JsonElement> = emptyList(),
+)
+
+@Serializable
+data class WebViewJsCallResult(
+    val result: JsonElement? = null,
 )

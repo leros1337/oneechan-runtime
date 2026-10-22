@@ -1,0 +1,42 @@
+{
+    "sources": [
+        {
+            "sourceKey": "source_7266875667263635239",
+            "values": [
+                {
+                    "key": "dataSaver",
+                    "type": "boolean",
+                    "value": true
+                },
+                {
+                    "key": "pageSize",
+                    "type": "int",
+                    "value": 30
+                },
+                {
+                    "key": "since",
+                    "type": "long",
+                    "value": 1700000000000
+                },
+                {
+                    "key": "ratio",
+                    "type": "float",
+                    "value": 1.5
+                },
+                {
+                    "key": "quality",
+                    "type": "string",
+                    "value": "hq"
+                },
+                {
+                    "key": "langs",
+                    "type": "stringSet",
+                    "value": [
+                        "en",
+                        "es"
+                    ]
+                }
+            ]
+        }
+    ]
+}

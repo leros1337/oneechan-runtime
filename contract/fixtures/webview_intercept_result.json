@@ -1,0 +1,12 @@
+{
+    "response": {
+        "statusCode": 201,
+        "reasonPhrase": "Created",
+        "mimeType": "application/json",
+        "encoding": "utf-8",
+        "headers": {
+            "X-From": "jvm"
+        },
+        "bodyBase64": "e30="
+    }
+}

@@ -1,0 +1,14 @@
+{
+    "viewId": "v1",
+    "event": {
+        "type": "pageFinished",
+        "url": "https://site.test/",
+        "state": {
+            "url": "https://site.test/",
+            "title": "Site",
+            "progress": 100,
+            "canGoBack": true,
+            "canGoForward": false
+        }
+    }
+}

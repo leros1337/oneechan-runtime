@@ -1,0 +1,34 @@
+{
+    "viewId": "v1",
+    "command": {
+        "type": "load",
+        "url": "https://site.test/",
+        "headers": {
+            "Referer": "https://site.test/"
+        },
+        "method": "GET",
+        "config": {
+            "userAgent": "UA/1",
+            "javaScriptEnabled": true,
+            "blockNetworkImage": false,
+            "interceptRequests": true,
+            "overrideUrlLoading": false,
+            "consoleMessages": true,
+            "javascriptInterfaces": [
+                {
+                    "name": "Bridge",
+                    "methods": [
+                        {
+                            "name": "post",
+                            "returnsValue": false
+                        },
+                        {
+                            "name": "sum",
+                            "returnsValue": true
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

@@ -6,5 +6,9 @@
     "jvm": "OpenJDK 64-Bit Server VM 21",
     "capabilities": [
         "repo.index.pb"
-    ]
+    ],
+    "engines": {
+        "js": "javascriptcore",
+        "graphics": "native"
+    }
 }

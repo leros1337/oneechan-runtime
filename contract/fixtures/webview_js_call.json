@@ -1,0 +1,9 @@
+{
+    "viewId": "v1",
+    "interfaceName": "Bridge",
+    "method": "post",
+    "args": [
+        "{\"a\":1}",
+        2
+    ]
+}

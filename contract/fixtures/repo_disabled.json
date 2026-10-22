@@ -1,0 +1,9 @@
+{
+    "indexUrl": "https://raw.githubusercontent.com/Kareadita/tach-extension/repo/repo.json",
+    "name": "Kavita Extension Repo",
+    "badgeLabel": "Kavita",
+    "signingKeyFingerprint": "5887aee6",
+    "website": "https://www.kavitareader.com/",
+    "isLegacy": true,
+    "enabled": false
+}
