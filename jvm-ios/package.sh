@@ -9,90 +9,58 @@
 #                                 app's Tools/licenses)
 # The app boots it over JNI (OneechanJVM shim); builds without it fall back to a development host.
 #
-#   VM=openj9 (default)  Eclipse OpenJ9 0.61 + OMR (EPL-2.0/Apache-2.0) with the OpenJDK 21 class library
-#                        (GPLv2 + Classpath Exception). Interpreter only. This is the VM that ships.
-#   VM=zero              HotSpot Zero from openjdk/mobile. DEVELOPMENT ONLY: HotSpot is GPLv2 *without* the
-#                        Classpath Exception, so a build that links it must never be distributed.
+# The VM is Eclipse OpenJ9 0.61 + OMR (used under Apache-2.0) with the OpenJDK 21 class library
+# (GPLv2 + Classpath Exception), interpreter only.
 #   EMBEDDED_DIR=dir     where to package (default: build/embedded; the app passes its ios/Embedded).
 #
 # Prereqs (once, see README.md):
-#   openj9: ./fetch.sh && ./fetch-openj9.sh && ./build-openj9-macos.sh &&
-#           ./build-openj9-ios.sh iphonesimulator (and/or iphoneos)
-#   zero:   ./fetch.sh && ./build-zero-macos.sh &&
-#           ./build-jdk-ios.sh iphonesimulator static-libs-image java gendata copy (and/or iphoneos)
+#   ./fetch-openj9.sh && ./build-openj9-macos.sh && ./build-openj9-ios.sh iphonesimulator (and/or iphoneos)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 W="$HERE/work"
-VM="${VM:-openj9}"
 OUT="${EMBEDDED_DIR:-$ROOT/build/embedded}"
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
 # jdeps of the host jar (jdk.javadoc dropped: only ICU's doc tools reference it), plus charsets and
 # locale data that extensions use to decode pages and parse dates, and zipfs.
 MODULES="${MODULES:-java.base,java.desktop,java.instrument,java.logging,java.management,java.naming,java.net.http,java.prefs,java.scripting,java.sql,jdk.charsets,jdk.dynalink,jdk.localedata,jdk.management,jdk.unsupported,jdk.zipfs}"
 
-case "$VM" in
-  openj9)
-    SRC="$W/openj9-jdk21"
-    conf_of() { case "$1" in iphoneos) echo ios-aarch64-openj9-release ;; iphonesimulator) echo iossim-aarch64-openj9-release ;; esac; }
-    build_of() { echo "$SRC/build/$(conf_of "$1")"; }
-    ;;
-  zero)
-    cat >&2 <<'EOF'
-################################################################################################
-##  VM=zero: HotSpot Zero is GPLv2 WITHOUT the Classpath Exception.                           ##
-##  DEVELOPMENT ONLY. An app linked with it must NEVER be distributed (App Store, TestFlight,  ##
-##  ad hoc or otherwise). Run `make jvm-ios` (VM=openj9) before any release build.             ##
-################################################################################################
-EOF
-    # -force_load keeps every JNI_OnLoad_<lib>/JNIEXPORT symbol: the static JDK finds them with dlsym.
-    JVM_LIBS="java verify zip jimage net nio syslookup fallbackLinker management management_ext prefs extnet"
-    conf_of() { case "$1" in iphoneos) echo ios-aarch64-zero-release ;; iphonesimulator) echo iossim-aarch64-zero-release ;; esac; }
-    build_of() { echo "$W/mobile/build/$(conf_of "$1")"; }
-    ;;
-  *) echo "VM must be openj9 or zero"; exit 1 ;;
-esac
+SRC="$W/openj9-jdk21"
+conf_of() { case "$1" in iphoneos) echo ios-aarch64-openj9-release ;; iphonesimulator) echo iossim-aarch64-openj9-release ;; esac; }
+build_of() { echo "$SRC/build/$(conf_of "$1")"; }
 mkdir -p "$OUT/host" "$W/trash"
 
 # 1. The host jar.
 (cd "$ROOT/extension-host" && ./gradlew --console=plain -q :host-embedded:shadowJar)
 cp "$ROOT/extension-host/host-embedded/build/libs/oneechan-host-embedded.jar" "$OUT/host/oneechan-host.jar"
 
-# 2. java.home (rebuilt when the VM or the module set changes).
+# 2. java.home (rebuilt when the module set changes).
 platform=""
 for p in iphoneos iphonesimulator; do [ -d "$(build_of $p)/jdk/modules/java.base" ] && { platform=$p; break; }; done
-[ -n "$platform" ] || { echo "No iOS $VM build: run $([ "$VM" = zero ] && echo build-jdk-ios.sh || echo build-openj9-ios.sh) first"; exit 1; }
-# Also when the build's classes changed since (a rebuilt or patched class library).
-if [ ! -f "$OUT/jre/lib/modules" ] || [ "$(cat "$OUT/jre.modules" 2>/dev/null)" != "$VM:$MODULES" ] \
-   || [ -n "$(find "$(build_of "$platform")/jdk/modules" -newer "$OUT/jre/lib/modules" -print -quit)" ]; then
+[ -n "$platform" ] || { echo "No iOS OpenJ9 build: run build-openj9-ios.sh first"; exit 1; }
+# Also when the build's classes changed since (a rebuilt or patched class library), or jlink-ios.sh did.
+if [ ! -f "$OUT/jre/lib/modules" ] || [ "$(cat "$OUT/jre.modules" 2>/dev/null)" != "openj9:$MODULES" ] \
+   || [ -n "$(find "$(build_of "$platform")/jdk/modules" -newer "$OUT/jre/lib/modules" -print -quit)" ] \
+   || [ "$HERE/jlink-ios.sh" -nt "$OUT/jre/lib/modules" ]; then
   [ ! -e "$OUT/jre" ] || mv "$OUT/jre" "$W/trash/jre.$$.$RANDOM"
-  VM="$VM" "$HERE/jlink-ios.sh" "$platform" "$OUT/jre" "$MODULES"
-  echo "$VM:$MODULES" > "$OUT/jre.modules"
+  "$HERE/jlink-ios.sh" "$platform" "$OUT/jre" "$MODULES"
+  echo "openj9:$MODULES" > "$OUT/jre.modules"
 fi
 # jlink links duplicate legal notices to java.base's; the app bundle gets plain files instead.
 find "$OUT/jre" -type l | while read -r link; do cp -L "$link" "$link.tmp" && mv -f "$link.tmp" "$link"; done
 # The VM's own options (GC, verifier, diagnostics), read by EmbeddedRuntime.bundled().
-cp "$HERE/jvm-options/$VM.options" "$OUT/jre/lib/oneechan-jvm.options"
+cp "$HERE/jvm-options/openj9.options" "$OUT/jre/lib/oneechan-jvm.options"
 
 # 3. Link flags for each SDK that has a build.
 {
-  echo "// Generated by jvm-ios/package.sh (VM=$VM): links the static JVM into the app."
-  [ "$VM" = openj9 ] || echo "// DEVELOPMENT ONLY: HotSpot Zero is GPLv2 without the Classpath Exception. Never distribute."
+  echo "// Generated by jvm-ios/package.sh: links the static OpenJ9 JVM into the app."
   for p in iphoneos iphonesimulator; do
     B="$(build_of "$p")"
-    if [ "$VM" = openj9 ]; then
-      [ -f "$B/vm/runtime/libj9vm29.dylib" ] || continue
-      # The VM's shared libraries and the JDK's static JNI libraries, prelinked into one archive.
-      P="$W/openj9-ios/$p/prelinked"
-      python3 -I "$HERE/prelink-openj9-ios.py" "$p" "$B" "$P" >&2
-      echo "JVM_LDFLAGS[sdk=$p*] = $(cat "$P/link-flags.txt")"
-    else
-      L="$B/images/static-libs/lib"
-      [ -f "$L/zero/libjvm.a" ] || continue
-      flags="-force_load $L/zero/libjvm.a"
-      for l in $JVM_LIBS; do flags="$flags -force_load $L/lib$l.a"; done
-      echo "JVM_LDFLAGS[sdk=$p*] = $flags $W/libffi-$p-arm64/lib/libffi.a -lz -lc++ -framework CoreFoundation -framework Foundation"
-    fi
+    [ -f "$B/vm/runtime/libj9vm29.dylib" ] || continue
+    # The VM's shared libraries and the JDK's static JNI libraries, prelinked into one archive.
+    P="$W/openj9-ios/$p/prelinked"
+    python3 -I "$HERE/prelink-openj9-ios.py" "$p" "$B" "$P" >&2
+    echo "JVM_LDFLAGS[sdk=$p*] = $(cat "$P/link-flags.txt")"
   done
 } > "$OUT/jvm.xcconfig"
 
@@ -111,33 +79,25 @@ url = "$6"
 linking = "$7"
 EOF
 }
-if [ "$VM" = openj9 ]; then
-  mkdir -p "$L/openj9" "$L/omr" "$L/openjdk" "$L/libffi" "$L/zlib"
-  cp "$SRC/openj9/LICENSE" "$SRC/openj9/NOTICES.md" "$SRC/openj9/epl-2.0.html" "$L/openj9/"
-  component openj9 "Eclipse OpenJ9" "0.61.0 ($(git -C "$SRC/openj9" rev-parse --short=12 HEAD), patched: jvm-ios/patches/openj9)" "Apache-2.0" \
-    "EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0" \
-    "https://github.com/eclipse-openj9/openj9" "Java VM (interpreter only), statically linked into the app binary"
-  cp "$SRC/omr/LICENSE" "$SRC/omr/NOTICE.md" "$L/omr/"
-  component omr "Eclipse OMR" "openj9-0.61.0 ($(git -C "$SRC/omr" rev-parse --short=12 HEAD), patched: jvm-ios/patches/openj9)" "Apache-2.0" \
-    "EPL-2.0 OR Apache-2.0" "https://github.com/eclipse-openj9/openj9-omr" "Runtime components of OpenJ9, statically linked into the app binary"
-  cp "$SRC/LICENSE" "$SRC/ASSEMBLY_EXCEPTION" "$SRC/ADDITIONAL_LICENSE_INFO" "$SRC/openj9-openjdk-notices" "$L/openjdk/"
-  component openjdk "OpenJDK class library" "21.0.12.1 (ibmruntimes/openj9-openjdk-jdk21 $(git -C "$SRC" rev-parse --short=12 HEAD), patched: jvm-ios/patches/openj9)" \
-    "GPL-2.0-only WITH Classpath-exception-2.0" "GPL-2.0-only WITH Classpath-exception-2.0" "https://github.com/ibmruntimes/openj9-openjdk-jdk21" \
-    "jlinked runtime image (lib/modules) bundled as an app resource; JDK native libraries (java, net, nio, zip, jimage, prefs, management, extnet) statically linked into the app binary"
-  # Third-party code inside OpenJ9 (runtime/libffi, runtime/zlib), both modified by OpenJ9.
-  cp "$SRC/openj9/runtime/libffi/LICENSE" "$L/libffi/LICENSE"
-  component libffi "libffi" "pre-3.5, as bundled and modified in OpenJ9 0.61.0 (runtime/libffi)" "MIT" "MIT" \
-    "https://github.com/eclipse-openj9/openj9/tree/openj9-0.61.0/runtime/libffi" "Part of the OpenJ9 VM, statically linked into the app binary (calls native code)"
-  sed -n '/^  Copyright (C)/,/^  Jean-loup Gailly/p' "$SRC/openj9/runtime/include/zlib.h" | sed 's/^  //' > "$L/zlib/LICENSE"
-  component zlib "zlib" "1.3.2, as bundled and modified in OpenJ9 0.61.0 (runtime/zlib, libj9zlib)" "Zlib" "Zlib" \
-    "https://github.com/eclipse-openj9/openj9/tree/openj9-0.61.0/runtime/zlib" "OpenJ9's j9zlib, statically linked into the app binary (the JDK's libzip uses the system libz)"
-else
-  M="$W/mobile"
-  mkdir -p "$L/openjdk" "$L/hotspot" "$L/libffi"
-  cp "$M/LICENSE" "$M/ASSEMBLY_EXCEPTION" "$M/ADDITIONAL_LICENSE_INFO" "$L/openjdk/"
-  cp "$M/LICENSE" "$L/hotspot/LICENSE"
-  cp "$W/src/libffi-3.8.0/LICENSE" "$L/libffi/LICENSE"
-fi
+mkdir -p "$L/openj9" "$L/omr" "$L/openjdk" "$L/libffi" "$L/zlib"
+cp "$SRC/openj9/LICENSE" "$SRC/openj9/NOTICES.md" "$SRC/openj9/epl-2.0.html" "$L/openj9/"
+component openj9 "Eclipse OpenJ9" "0.61.0 ($(git -C "$SRC/openj9" rev-parse --short=12 HEAD), patched: jvm-ios/patches/openj9)" "Apache-2.0" \
+  "EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0" \
+  "https://github.com/eclipse-openj9/openj9" "Java VM (interpreter only), statically linked into the app binary"
+cp "$SRC/omr/LICENSE" "$SRC/omr/NOTICE.md" "$L/omr/"
+component omr "Eclipse OMR" "openj9-0.61.0 ($(git -C "$SRC/omr" rev-parse --short=12 HEAD), patched: jvm-ios/patches/openj9)" "Apache-2.0" \
+  "EPL-2.0 OR Apache-2.0" "https://github.com/eclipse-openj9/openj9-omr" "Runtime components of OpenJ9, statically linked into the app binary"
+cp "$SRC/LICENSE" "$SRC/ASSEMBLY_EXCEPTION" "$SRC/ADDITIONAL_LICENSE_INFO" "$SRC/openj9-openjdk-notices" "$L/openjdk/"
+component openjdk "OpenJDK class library" "21.0.12.1 (ibmruntimes/openj9-openjdk-jdk21 $(git -C "$SRC" rev-parse --short=12 HEAD), patched: jvm-ios/patches/openj9)" \
+  "GPL-2.0-only WITH Classpath-exception-2.0" "GPL-2.0-only WITH Classpath-exception-2.0" "https://github.com/ibmruntimes/openj9-openjdk-jdk21" \
+  "jlinked runtime image (lib/modules) bundled as an app resource; JDK native libraries (java, net, nio, zip, jimage, prefs, management, extnet) statically linked into the app binary"
+# Third-party code inside OpenJ9 (runtime/libffi, runtime/zlib), both modified by OpenJ9.
+cp "$SRC/openj9/runtime/libffi/LICENSE" "$L/libffi/LICENSE"
+component libffi "libffi" "pre-3.5, as bundled and modified in OpenJ9 0.61.0 (runtime/libffi)" "MIT" "MIT" \
+  "https://github.com/eclipse-openj9/openj9/tree/openj9-0.61.0/runtime/libffi" "Part of the OpenJ9 VM, statically linked into the app binary (calls native code)"
+sed -n '/^  Copyright (C)/,/^  Jean-loup Gailly/p' "$SRC/openj9/runtime/include/zlib.h" | sed 's/^  //' > "$L/zlib/LICENSE"
+component zlib "zlib" "1.3.2, as bundled and modified in OpenJ9 0.61.0 (runtime/zlib, libj9zlib)" "Zlib" "Zlib" \
+  "https://github.com/eclipse-openj9/openj9/tree/openj9-0.61.0/runtime/zlib" "OpenJ9's j9zlib, statically linked into the app binary (the JDK's libzip links the JDK's own bundled zlib, covered by java.base's zlib notice)"
 
 sed 's/ -force_load / … /g' "$OUT/jvm.xcconfig" | cut -c1-140
 du -sh "$OUT/jre" "$OUT/host/oneechan-host.jar" "$L"

@@ -6,7 +6,7 @@
 # 4 GB for class data, and arm64 Mach-O executables (macOS and iOS) reserve it as __PAGEZERO.
 #   ./build-openj9-macos.sh [make targets...]        (default: images)
 # Output: work/openj9-jdk21/build/macosx-aarch64-openj9-release/images/jdk
-# Prereq: ./fetch.sh && ./fetch-openj9.sh
+# Prereq: ./fetch-openj9.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 W="$HERE/work"

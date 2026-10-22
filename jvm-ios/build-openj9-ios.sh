@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Cross-builds Eclipse OpenJ9 (+ OMR) and the OpenJDK 21 class library for iOS arm64 (device or
-# simulator), interpreter only, then prelinks the VM and the JDK's native libraries into static
-# objects for the app (prelink-openj9-ios.sh).
+# simulator), interpreter only. package.sh then prelinks the VM and the JDK's native libraries into
+# a static archive for the app (prelink-openj9-ios.py).
 #   ./build-openj9-ios.sh iphoneos|iphonesimulator [make targets...]
 # Output: work/openj9-jdk21/build/<conf>/ (VM in vm/, classes in jdk/modules, static JDK libs in
-#         support/native/*/*/static) and work/openj9-ios/<platform>/ (prelinked objects).
-# Prereq: ./fetch.sh && ./fetch-openj9.sh (Semeru 21 is the boot JDK and the build JDK: it is the
+#         support/native/*/*/static) and work/openj9-ios/<platform>/ (compiler wrappers).
+# Prereq: ./fetch-openj9.sh (Semeru 21 is the boot JDK and the build JDK: it is the
 #         exact same JDK version, 21.0.12.1+1, and the same OpenJ9 release).
 #
 # How the cross build works:
@@ -34,7 +34,8 @@ case "$PLATFORM" in
   iphonesimulator) CONF=iossim-aarch64-openj9-release; TRIPLE="arm64-apple-ios${IOS_MIN}-simulator" ;;
   *) echo "usage: build-openj9-ios.sh iphoneos|iphonesimulator [targets]"; exit 1 ;;
 esac
-# The modules whose native libraries the host needs (linked statically; see prelink-openj9-ios.sh).
+# The modules whose native libraries the host needs (linked statically; see prelink-openj9-ios.py,
+# run by package.sh).
 STATIC_LIB_MODULES="java.base java.prefs java.management jdk.management jdk.net"
 TARGETS=("$@")
 if [ ${#TARGETS[@]} -eq 0 ]; then
