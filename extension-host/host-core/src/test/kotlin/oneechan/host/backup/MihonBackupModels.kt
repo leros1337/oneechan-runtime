@@ -1,8 +1,8 @@
 /*
  * Copyright © 2015 Javier Tomás, Copyright © 2024 Mihon Open Source Project.
- * Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+ * Licensed under the Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0
  *
- * The `.tachibk` backup models of Mihon (app/src/main/java/eu/kanade/tachiyomi/data/backup/models),
+ * Modified for Oneechan. The `.tachibk` backup models of Mihon (app/src/main/java/eu/kanade/tachiyomi/data/backup/models),
  * reduced to the wire format: Oneechan's Swift backup code is tested against bytes these classes
  * produce and decode with kotlinx-serialization-protobuf, exactly as Mihon does.
  */

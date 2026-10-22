@@ -21,7 +21,8 @@ import kotlin.test.assertEquals
 /**
  * `.tachibk` interop with Mihon's own serializer. `contract/fixtures/backup/mihon-sample.tachibk` is
  * what Mihon writes for [sample]; the Swift tests decode it. `oneechan-written.tachibk` is written by
- * the Swift tests and must decode here as Mihon would read it.
+ * the Swift tests and must decode here as Mihon would read it. `oneechan-rich.tachibk` is the rich backup
+ * (every field Oneechan exports), checked against [richBackup]; Komikku's fields are in `KomikkuBackupInteropTest`.
  */
 class MihonBackupInteropTest {
     private val dir: Path = Path(System.getProperty("oneechan.contractDir") ?: "../contract").resolve("fixtures/backup")
@@ -63,6 +64,43 @@ class MihonBackupInteropTest {
         assertEquals(expected.nextUpdate, frieren.nextUpdate)
         assertEquals(sample.backupExtensionStores, backup.backupExtensionStores)
     }
+
+    /**
+     * `oneechan-rich.tachibk` (every field Oneechan exports, from the Swift `RichBackupFixtureTests`) decodes with Mihon's
+     * models to the values in [richBackup]. Entries are compared field by field, byte for byte, with chapters, tracking
+     * and history in a fixed order; categories by name, since their orders come from the database.
+     */
+    @Test
+    fun oneechanRichBackupKeepsEveryValueForMihon() {
+        val file = dir.resolve("oneechan-rich.tachibk")
+        assumeTrue(file.exists(), "written by the Swift RichBackupFixtureTests")
+        val backup = parser.decodeFromByteArray(Backup.serializer(), GZIPInputStream(file.readBytes().inputStream()).readBytes())
+
+        assertEquals(richBackup.backupManga.map { it.url }.sorted(), backup.backupManga.map { it.url }.sorted())
+        for (expected in richBackup.backupManga) {
+            val actual = backup.backupManga.single { it.url == expected.url }
+            assertEquals(expected.source, actual.source, expected.url)
+            assertEquals(richBackup.categoryNames(expected), backup.categoryNames(actual), expected.url)
+            assertContentEquals(expected.canonical().wire(), actual.canonical().wire(), expected.url)
+        }
+        assertEquals(richBackup.backupCategories.map { it.name to it.flags }.sortedBy { it.first }, backup.backupCategories.map { it.name to it.flags }.sortedBy { it.first })
+        assertEquals(richBackup.backupSources.sortedBy { it.sourceId }, backup.backupSources.sortedBy { it.sourceId })
+        assertEquals(richBackup.backupPreferences, backup.backupPreferences)
+        assertEquals(richBackup.backupExtensionStores, backup.backupExtensionStores)
+    }
+
+    private fun Backup.categoryNames(manga: BackupManga): List<String> =
+        manga.categories.map { order -> backupCategories.single { it.order == order }.name }
+
+    private fun BackupManga.canonical(): BackupManga =
+        copy(
+            chapters = chapters.sortedBy { it.url },
+            tracking = tracking.sortedBy { it.syncId },
+            history = history.sortedBy { it.url },
+            categories = emptyList(),
+        )
+
+    private fun BackupManga.wire(): ByteArray = ProtoBuf.encodeToByteArray(BackupManga.serializer(), this)
 
     private fun gzip(bytes: ByteArray): ByteArray =
         ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(bytes) } }.toByteArray()
