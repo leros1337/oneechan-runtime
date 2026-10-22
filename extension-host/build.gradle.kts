@@ -23,6 +23,9 @@ subprojects {
         }
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
+            // Images are drawn off screen only. Without this, AWT on macOS starts a GUI "java" app and
+            // asks for Input Monitoring and Screen Recording access.
+            systemProperty("java.awt.headless", "true")
             testLogging {
                 events("failed", "skipped")
                 exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

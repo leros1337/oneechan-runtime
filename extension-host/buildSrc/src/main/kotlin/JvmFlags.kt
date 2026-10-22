@@ -6,5 +6,7 @@ object JvmFlags {
             // (a diagnostic flag since JDK 22-era HotSpot, so it must be unlocked first).
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:-BytecodeVerificationRemote",
+            // No GUI: images are drawn off screen, and on macOS a GUI "java" app asks for privacy access.
+            "-Djava.awt.headless=true",
         )
 }
