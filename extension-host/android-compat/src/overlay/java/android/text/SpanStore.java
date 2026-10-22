@@ -1,8 +1,11 @@
 package android.text;
 
 /*
- * Oneechan AndroidCompat addition (the android.jar stub throws "Stub!"). Behaviour follows AOSP
- * (Apache-2.0); span styling is kept as data since the host never renders text spans itself.
+ * Oneechan AndroidCompat addition (the android.jar stub throws "Stub!"). This is an independent
+ * implementation of the public android.text API, written for Oneechan without copying AOSP source
+ * code, comments or structure (only the public API names and documented behaviour are shared, so
+ * it is not an AOSP-derived file). Span styling is kept as data since the host never renders text
+ * spans itself.
  */
 
 import java.lang.reflect.Array;
@@ -40,7 +43,7 @@ final class SpanStore {
     }
 
     void set(Object what, int start, int end, int flags) {
-        if (start > end) throw new IndexOutOfBoundsException("setSpan (" + start + " ... " + end + ") has end before start");
+        if (start > end) throw new IndexOutOfBoundsException("setSpan range [" + start + ", " + end + ") has its end before its start");
         for (Entry entry : entries) {
             if (entry.what == what) {
                 entry.start = start;

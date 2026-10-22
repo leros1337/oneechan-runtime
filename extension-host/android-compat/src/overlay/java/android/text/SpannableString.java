@@ -1,8 +1,11 @@
 package android.text;
 
 /*
- * Oneechan AndroidCompat addition (the android.jar stub throws "Stub!"). Behaviour follows AOSP
- * (Apache-2.0); span styling is kept as data since the host never renders text spans itself.
+ * Oneechan AndroidCompat addition (the android.jar stub throws "Stub!"). This is an independent
+ * implementation of the public android.text API, written for Oneechan without copying AOSP source
+ * code, comments or structure (only the public API names and documented behaviour are shared, so
+ * it is not an AOSP-derived file). Span styling is kept as data since the host never renders text
+ * spans itself.
  */
 
 public class SpannableString implements CharSequence, GetChars, Spannable {
@@ -19,7 +22,7 @@ public class SpannableString implements CharSequence, GetChars, Spannable {
     }
 
     public void setSpan(Object what, int start, int end, int flags) {
-        if (start < 0 || end > text.length()) throw new IndexOutOfBoundsException("setSpan (" + start + " ... " + end + ") ends beyond length " + text.length());
+        if (start < 0 || end > text.length()) throw new IndexOutOfBoundsException("setSpan range [" + start + ", " + end + ") is outside the text of length " + text.length());
         spans.set(what, start, end, flags);
     }
 
