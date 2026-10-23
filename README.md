@@ -62,7 +62,7 @@ the host jar, the link flags and the licence files.
 EMBEDDED_DIR=/path/to/app/ios/Embedded jvm-ios/package.sh   # default: build/embedded
 ```
 
-Inside the app repository this repository is the `runtime/` submodule, and `make jvm-ios` does the
+Inside the app repository this repository is the `oneechan-runtime/` submodule, and `make jvm-ios` does the
 above.
 
 ## Tests
