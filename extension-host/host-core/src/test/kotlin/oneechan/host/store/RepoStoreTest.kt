@@ -8,8 +8,6 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import okhttp3.OkHttpClient
 import okio.Buffer
-import oneechan.host.rpc.AvailableExtensionDto
-import oneechan.host.rpc.ContentWarningDto
 import oneechan.host.rpc.ErrorCode
 import oneechan.host.rpc.RpcException
 import org.junit.jupiter.api.AfterEach
@@ -19,10 +17,13 @@ import org.junit.jupiter.api.assertThrows
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.io.path.exists
 import kotlin.io.path.writeText
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /** Enabling and disabling repos (Komikku): the flag persists in `repos.json` and filters offers. */
@@ -182,7 +183,7 @@ class RepoStoreTest {
         pkg: String,
         repo: String,
         versionCode: Long,
-    ) = AvailableExtensionDto(pkg, pkg, "1.4.$versionCode", versionCode, "1.4", "en", ContentWarningDto.SAFE, repo, "https://$repo/a.apk", null, "", emptyList())
+    ) = OfferEntry(pkg, repo, versionCode)
 
     @Test
     fun `installed extensions of a disabled repo get no updates and are not obsolete`() {
@@ -208,4 +209,89 @@ class RepoStoreTest {
         assertEquals(UpdateState(hasUpdate = true, isObsolete = false), offers.updateState("a", 1, "repo-e", isExternal = false))
         assertEquals(UpdateState(hasUpdate = true, isObsolete = false), offers.updateState("a", 1, null, isExternal = false))
     }
+
+    // ---- the index is parsed once, and the update check doesn't parse it ----------------------
+
+    private suspend fun RepoStore.kavita() = available().first { it.name == "Kavita" }
+
+    @Test
+    fun `offers are kept until the index or the repos change`() =
+        runTest {
+            val store = store()
+            store.addBoth()
+            val offers = store.offers()
+            assertSame(offers, store.offers())
+
+            store.setEnabled(kavitaIndex, false)
+            val afterToggle = store.offers()
+            assertNotSame(offers, afterToggle)
+            assertSame(afterToggle, store.offers())
+
+            store.refresh()
+            assertNotSame(afterToggle, store.offers())
+        }
+
+    @Test
+    fun `the update check does not parse the index`() =
+        runTest {
+            val first = store()
+            first.addBoth()
+            val kavita = first.kavita()
+            val index = dir.resolve("available.json")
+            // The index is garbage of the same size and time: a store that parsed it would see no offers.
+            val stamp = Files.getLastModifiedTime(index)
+            index.writeText("x".repeat(Files.size(index).toInt()))
+            Files.setLastModifiedTime(index, stamp)
+
+            val cold = store()
+            val state = cold.offers().updateState(kavita.pkgName, kavita.versionCode - 1, kavita.repoIndexUrl, isExternal = false)
+            assertEquals(UpdateState(hasUpdate = true, isObsolete = false), state)
+            assertTrue(cold.available().isEmpty(), "the index itself is unreadable")
+        }
+
+    @Test
+    fun `an index changed by something else makes the offers follow it`() =
+        runTest {
+            val store = store()
+            store.addBoth()
+            val kavita = store.kavita()
+            val behind = kavita.versionCode - 1
+            assertTrue(store.offers().updateState(kavita.pkgName, behind, kavita.repoIndexUrl, false).hasUpdate)
+
+            val index = dir.resolve("available.json")
+            index.writeText(Files.readString(index).replace(kavita.pkgName, "gone.${kavita.pkgName}"))
+            val state = store.offers().updateState(kavita.pkgName, behind, kavita.repoIndexUrl, false)
+            assertEquals(UpdateState(hasUpdate = false, isObsolete = true), state)
+        }
+
+    @Test
+    fun `an index from before the summary existed gets one on first use`() =
+        runTest {
+            store().addBoth()
+            val summary = dir.resolve("available-versions.json")
+            Files.delete(summary)
+
+            val store = store()
+            val kavita = store.kavita()
+            assertTrue(store.offers().updateState(kavita.pkgName, kavita.versionCode - 1, kavita.repoIndexUrl, false).hasUpdate)
+            assertTrue(summary.exists())
+        }
+
+    @Test
+    fun `removing and refreshing a repo update the offers`() =
+        runTest {
+            val store = store()
+            store.addBoth()
+            val kavita = store.kavita()
+            store.remove(kavitaIndex)
+            assertEquals(
+                UpdateState(hasUpdate = false, isObsolete = true),
+                store.offers().updateState(kavita.pkgName, kavita.versionCode, kavita.repoIndexUrl, false),
+            )
+            // A new store on the same files agrees.
+            assertEquals(
+                UpdateState(hasUpdate = false, isObsolete = true),
+                store().offers().updateState(kavita.pkgName, kavita.versionCode, kavita.repoIndexUrl, false),
+            )
+        }
 }

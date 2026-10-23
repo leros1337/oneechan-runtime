@@ -13,6 +13,7 @@ import oneechan.host.rpc.ErrorCode
 import oneechan.host.rpc.RepoDto
 import oneechan.host.rpc.RpcException
 import oneechan.host.util.AtomicJsonFile
+import oneechan.host.util.FileStamp
 import suwayomi.tachidesk.manga.model.dataclass.ContentWarning
 import suwayomi.tachidesk.manga.model.dataclass.ExtensionInfo
 import suwayomi.tachidesk.manga.model.dataclass.ExtensionStore
@@ -55,6 +56,36 @@ data class RefreshOutcome(
     val failedRepos: List<String>,
 )
 
+/** A repo's offer as the update check sees it: the newest version of a package. */
+data class OfferEntry(
+    val pkgName: String,
+    val repoIndexUrl: String,
+    val versionCode: Long,
+)
+
+/**
+ * The part of `available.json` the update check needs (repo, package, newest version), kept in its own
+ * small file so the check doesn't parse the whole index. [source] is the index file it was made from;
+ * when that file changed since, the summary is built again.
+ */
+@Serializable
+data class OfferSummary(
+    val source: FileStamp?,
+    val versions: Map<String, Map<String, Long>>,
+) {
+    fun entries(): List<OfferEntry> = versions.flatMap { (repo, packages) -> packages.map { (pkg, version) -> OfferEntry(pkg, repo, version) } }
+
+    companion object {
+        fun of(
+            available: List<AvailableExtensionDto>,
+            source: FileStamp?,
+        ) = OfferSummary(
+            source,
+            available.groupBy { it.repoIndexUrl }.mapValues { (_, offers) -> offers.groupBy { it.pkgName }.mapValues { (_, same) -> same.maxOf { it.versionCode } } },
+        )
+    }
+}
+
 /** Configured repos and the last successfully fetched extension list of each (works offline). */
 class RepoStore(
     stateDir: Path,
@@ -66,6 +97,15 @@ class RepoStore(
     private val reposFile = AtomicJsonFile(stateDir.resolve("repos.json"), ListSerializer(RepoRecord.serializer()), json) { emptyList() }
     private val availableFile =
         AtomicJsonFile(stateDir.resolve("available.json"), ListSerializer(AvailableExtensionDto.serializer()), json) { emptyList() }
+    private val summaryFile =
+        AtomicJsonFile(stateDir.resolve("available-versions.json"), OfferSummary.serializer(), json) { OfferSummary(null, emptyMap()) }
+    private var offersMemo: OffersMemo? = null
+
+    private class OffersMemo(
+        val summary: OfferSummary,
+        val repos: List<RepoRecord>,
+        val offers: RepoOffers,
+    )
 
     fun repos(): List<RepoRecord> = reposFile.read()
 
@@ -78,8 +118,36 @@ class RepoStore(
         return availableFile.read().filterNot { it.repoIndexUrl in disabled }
     }
 
-    /** Every repo's offers, with the disabled ones marked, for update checks of installed extensions. */
-    fun offers(): RepoOffers = RepoOffers(availableFile.read(), disabledIndexUrls())
+    /**
+     * Every repo's offers, with the disabled ones marked, for update checks of installed extensions. Built from
+     * the small summary of the index, not the index itself, and kept until either changes.
+     */
+    @Synchronized
+    fun offers(): RepoOffers {
+        val summary = offerSummary()
+        val repos = reposFile.read()
+        offersMemo?.takeIf { it.summary === summary && it.repos === repos }?.let { return it.offers }
+        val disabled = repos.filterNot { it.enabled }.map { it.indexUrl }.toSet()
+        return RepoOffers(summary.entries(), disabled).also { offersMemo = OffersMemo(summary, repos, it) }
+    }
+
+    /** The summary of the index as it is now: from its file when that was made from this index, else built (and saved) from the index. */
+    private fun offerSummary(): OfferSummary {
+        // The stamp is taken before the read: an index replaced in between only makes the next check build the summary again.
+        val stamp = availableFile.stamp()
+        val summary = summaryFile.read()
+        if (summary.source == stamp) return summary
+        return OfferSummary.of(availableFile.read(), stamp).also(summaryFile::write)
+    }
+
+    /** Replaces the index and its summary (written after it, so the summary's stamp is the new file's). */
+    @Synchronized
+    private fun updateAvailable(transform: (List<AvailableExtensionDto>) -> List<AvailableExtensionDto>): List<AvailableExtensionDto> {
+        val list = transform(availableFile.read())
+        availableFile.write(list)
+        summaryFile.write(OfferSummary.of(list, availableFile.stamp()))
+        return list
+    }
 
     /** Every repo's key, disabled or not: extensions installed from a disabled repo stay trusted. */
     fun fingerprints(): Set<String> = repos().map { it.signingKeyFingerprint.lowercase() }.filter { it.isNotBlank() }.toSet()
@@ -114,14 +182,14 @@ class RepoStore(
             val wasEnabled = repos().find { it.indexUrl == store.indexUrl }?.enabled ?: true
             val record = RepoRecord.from(store).copy(enabled = wasEnabled)
             reposFile.update { repos -> repos.filterNot { it.indexUrl == record.indexUrl } + record }
-            availableFile.update { list -> list.filterNot { it.repoIndexUrl == record.indexUrl } + extensions.map { it.toDto() } }
+            updateAvailable { list -> list.filterNot { it.repoIndexUrl == record.indexUrl } + extensions.map { it.toDto() } }
             record
         }
 
     suspend fun remove(indexUrl: String) =
         mutex.withLock {
             reposFile.update { repos -> repos.filterNot { it.indexUrl == indexUrl } }
-            availableFile.update { list -> list.filterNot { it.repoIndexUrl == indexUrl } }
+            updateAvailable { list -> list.filterNot { it.repoIndexUrl == indexUrl } }
         }
 
     suspend fun refresh(): RefreshOutcome =
@@ -151,7 +219,7 @@ class RepoStore(
             }
             val repos = refreshed.distinctBy { it.indexUrl }
             reposFile.write(repos)
-            availableFile.write(available)
+            updateAvailable { available }
             val disabled = repos.filterNot { it.enabled }.map { it.indexUrl }.toSet()
             RefreshOutcome(repos, available.count { it.repoIndexUrl !in disabled }, failed)
         }
@@ -164,7 +232,7 @@ data class UpdateState(
 
 /** Every repo's offers; [disabled] repos are not checked for updates. */
 class RepoOffers(
-    all: List<AvailableExtensionDto>,
+    all: Collection<OfferEntry>,
     private val disabled: Set<String>,
 ) {
     private val byPackage = all.groupBy { it.pkgName }
@@ -190,7 +258,7 @@ class RepoOffers(
     }
 
     private fun newest(
-        offers: List<AvailableExtensionDto>,
+        offers: List<OfferEntry>,
         repoIndexUrl: String?,
     ): Long? = offers.filter { repoIndexUrl == null || it.repoIndexUrl == repoIndexUrl }.ifEmpty { offers }.maxOfOrNull { it.versionCode }
 }

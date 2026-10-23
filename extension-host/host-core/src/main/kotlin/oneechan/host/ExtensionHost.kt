@@ -245,9 +245,11 @@ class ExtensionHost(
             .filter { params.includeNsfw || it.contentWarning == oneechan.host.rpc.ContentWarningDto.SAFE }
 
     fun extListInstalled(): List<InstalledExtensionDto> {
+        val records = installed.all()
+        if (records.isEmpty()) return emptyList()
         // Disabled repos give no updates, and turning one off doesn't make its extensions obsolete.
         val offers = repos.offers()
-        return installed.all().map { record ->
+        return records.map { record ->
             val state = offers.updateState(record.pkgName, record.versionCode, record.repoIndexUrl, record.isExternal)
             record.toDto(hasUpdate = state.hasUpdate, isObsolete = state.isObsolete)
         }
