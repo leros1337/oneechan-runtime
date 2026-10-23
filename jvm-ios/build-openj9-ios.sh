@@ -39,7 +39,8 @@ esac
 STATIC_LIB_MODULES="java.base java.prefs java.management jdk.management jdk.net"
 TARGETS=("$@")
 if [ ${#TARGETS[@]} -eq 0 ]; then
-  TARGETS=(hotspot java gendata copy) # "hotspot" builds the JVM, here OpenJ9 (j9vm-build)
+  # OpenJ9 (j9vm-build) is built by the copy targets; "java.base-copy" alone rebuilds just the VM.
+  TARGETS=(hotspot java gendata copy)
   for m in $STATIC_LIB_MODULES; do TARGETS+=("$m-static-libs"); done
 fi
 SDK="$(xcrun --sdk "$PLATFORM" --show-sdk-path)"

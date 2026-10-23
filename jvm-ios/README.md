@@ -52,7 +52,7 @@ The built VM reports `java.vm.version` `21.0.12.1+1-openj9-0.61.0` (configured w
 | `fetch-openj9.sh` | Semeru 21 (boot and build JDK, desktop OpenJ9 for tests), GNU make 4.x, the CUPS headers, and shallow clones of the three trees at the pinned commits plus the release tags. |
 | `apply-openj9-patches.sh` | Applies `patches/openj9/*.patch` idempotently (`jdk-*`, `openj9-*`, `omr-*` name the tree). |
 | `build-openj9-macos.sh` | macOS arm64 sanity build (`images`, JIT included), non-compressed refs like Semeru. |
-| `build-openj9-ios.sh iphoneos\|iphonesimulator` | Cross build: the VM (`hotspot` target = OpenJ9's CMake build), the classes (`java gendata copy`) and the JDK's static JNI libraries (`<module>-static-libs` for java.base, java.prefs, java.management, jdk.management, jdk.net). |
+| `build-openj9-ios.sh iphoneos\|iphonesimulator` | Cross build: the VM (OpenJ9's CMake build, `j9vm-build`, which the `copy` targets depend on), the classes (`java gendata copy`) and the JDK's static JNI libraries (`<module>-static-libs` for java.base, java.prefs, java.management, jdk.management, jdk.net). After an OpenJ9 or OMR change, the target `java.base-copy` rebuilds just the VM (`j9vm-build`) incrementally; `hotspot` alone does not rebuild it. |
 | `prelink-openj9-ios.py PLATFORM BUILD OUT` | Turns the VM's dylibs and the JDK's static libraries into one static archive `libopenj9.a` plus `link-flags.txt` (see "Static linking"). Run by `package.sh`. |
 | `jlink-ios.sh` | Packs jmods without native code and jlinks `java.home`. |
 | `package.sh` | Writes `$EMBEDDED_DIR` (default `build/embedded`). |
@@ -163,10 +163,28 @@ with `make jvm-ios` (there is no HotSpot option fallback). `package.sh` copies
 -Xint -Xnojit -Xnoaot
 -Xverify:none                     # extensions are R8-optimized for ART (OpenJ9 21 prints JVMJ9VM193W, a deprecation warning)
 -Xgcpolicy:gencon
+-Xms40m -Xmns8m -Xmnx16m          # 32 MB tenured space and an 8-16 MB nursery from the start
+-Xgcthreads2                      # about 30% less GC CPU time than one GC thread per CPU
 -Xshareclasses:none
 -Dcom.ibm.tools.attach.enable=no  # the attach API needs /tmp and SysV semaphores
 -Xdump:directory=${cacheDir}  -Xdump:system:none  -Xdump:heap:none   # javacores only, in Caches
+-Xtrace:none                      # no trace engine; javacores keep their content (see below)
 ```
+
+The heap and GC options come from `-Xverbosegclog` runs of the host in the simulator (boot, repo
+index parsing, listing, the JS self-test, and 2.6 MB response bodies), 2026-10-23:
+- With OpenJ9's default 8 MB start (2 MB nursery), the host ran about 10 global collections, some
+  with compaction, in the first 2 s while the tenured space grew. With the options above it runs at
+  most one, and about half as many scavenges overall.
+- `-Xms` is committed (`mprotect`), not touched. Footprint is +5-7 MB right after start (the nursery)
+  and about 5 MB lower than the default under load, where the default nursery grows past 16 MB.
+  `-Xms` must stay at or below the `-Xmx` that `JNITransport` passes (512 MB by default).
+- `-Xgcthreads2`: the same collections took about 30% less GC CPU time than with 6 threads, for
+  slightly longer pauses, and the VM has 4 fewer threads.
+- `-Xtrace:none`: javacores show the same sections, threads and stacks. Their trace history sections
+  ("Current thread history", "GC History") are empty either way, because the jre ships no trace
+  format files. What is lost is the binary `Snap*.trc` written next to a crash javacore, which
+  Semeru's `traceformat` can read on a Mac; drop the option to get it back while debugging.
 
 `EmbeddedBridge` refuses to start if the JVM verifies extension bytecode. On a desktop HotSpot JDK
 (the development host and the Kotlin tests) it reads `BytecodeVerificationRemote`, and a HotSpot
@@ -187,9 +205,12 @@ where that MXBean call throws, the last `-Xverify[:...]` input argument decides
 | `openj9-build-without-jit` | `OMR_COMPILER=OFF` skips `runtime/compiler` |
 | `openj9-libffi-no-cfi-on-apple` | Xcode 26+ rejects the bundled libffi's aarch64 CFI directives |
 | `openj9-jit-honour-disable-warnings-as-errors` | macOS sanity build: newer clang warnings in the JIT |
+| `openj9-static-ras-struct-on-apple-arm64` | `rasdump.c`: the static RAS struct on macOS and iOS arm64. Without compressed references OpenJ9 probes every page below 4 GB for it, which is all `__PAGEZERO` on arm64, then uses the static struct anyway (about 165 ms per boot on an iPhone 18 Pro) |
 
-Applied to pristine trees, they reproduce the working trees exactly (19 files). `work/` was rebuilt
-from scratch with them: fetch, three builds, package, app and UI test.
+Applied to pristine trees, they reproduce the working trees exactly (20 files). `work/` was rebuilt
+from scratch with the first nine: fetch, three builds, package, app and UI test.
+`openj9-static-ras-struct-on-apple-arm64` was added later with an incremental VM rebuild
+(`./build-openj9-ios.sh <platform> java.base-copy`, then `make jvm-ios`).
 
 ## Tests
 
