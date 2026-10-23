@@ -42,8 +42,10 @@ if [ "$MODE" = vm ]; then
 else
   [ -f "$SHIM/oneechan_jvm.c" ] || { echo "set SHIM_DIR to the app's OneechanJVM sources (ios/Packages/OneechanKit/Sources/OneechanJVM)"; exit 1; }
   [ -f "$HOST_JAR" ] || (cd "$HERE/../extension-host" && JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}" ./gradlew --console=plain -q :host-embedded:shadowJar)
-  "$CC" -O1 -I"$SHIM/include" -I"$SHIM/jni" "$HERE/smoke/host_smoke.c" "$SHIM/oneechan_jvm.c" "${FLAGS[@]}" \
-    -o "$S/host_smoke" 2>&1 | { grep -v 'ignoring duplicate libraries' || true; }
+  # The shim with its android.graphics (CoreGraphics) and QuickJs (JavaScriptCore) backends, as the app links it.
+  "$CC" -O1 -I"$SHIM/include" -I"$SHIM/jni" "$HERE/smoke/host_smoke.c" "$SHIM/oneechan_jvm.c" "$SHIM/oneechan_graphics.c" \
+    "$SHIM/oneechan_js.c" "${FLAGS[@]}" -framework CoreGraphics -framework ImageIO -framework CoreText -framework Accelerate \
+    -framework JavaScriptCore -o "$S/host_smoke" 2>&1 | { grep -v 'ignoring duplicate libraries' || true; }
   ls -l "$S/host_smoke"
 fi
 [ "$PLATFORM" = iphonesimulator ] || { echo "linked for the device (not run)"; exit 0; }
