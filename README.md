@@ -10,7 +10,9 @@ from dex with dex2jar and loaded, all on the device.
 The app links a JVM, Eclipse OpenJ9, statically. It runs as an interpreter only, because iOS forbids
 JIT compilation. On that JVM the app starts the extension host, a Kotlin program built on Suwayomi's
 Android compatibility layer and Tachiyomi source API. The app and the host speak one JSON-RPC
-protocol: over JNI on the device, and over HTTP with Server-Sent Events during development.
+protocol: over JNI on the device, and over HTTP with Server-Sent Events during development. On the
+device, extension HTTP has a channel of its own beside it: the metadata is JSON, but request and
+response bodies cross JNI as raw bytes, never as base64 the interpreter would have to parse.
 
 - **Repos and installs.** `index.min.json` and `index.pb` indexes are supported. An extension's
   manifest and signing certificate are read. Its lib version is checked, and unknown signers need

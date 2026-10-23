@@ -19,7 +19,7 @@ import java.util.concurrent.TimeoutException
 /**
  * Development [NativeNet]: the host (desktop JVM) asks the connected app to perform each request
  * with its real URLSession + Cloudflare solver, via the `net.fetch` event and the `net.fetchResult`
- * RPC. On device the same Swift code is called over JNI instead.
+ * RPC. The embedded host uses [BinaryNativeNet] instead: same exchange, bodies as raw bytes.
  */
 class RpcNativeNet(
     private val events: EventSink,
@@ -62,7 +62,7 @@ class RpcNativeNet(
                         if (System.nanoTime() > deadline) throw SocketTimeoutException("No response from the app for ${request.url}")
                         continue
                     }
-                return result.toNativeResponse(request.url)
+                return result.toNativeResponse(request.url, result.bodyBase64?.let(Base64.getDecoder()::decode))
             }
         } finally {
             pending.remove(id)
@@ -71,22 +71,26 @@ class RpcNativeNet(
 
     /** Called by the `net.fetchResult` RPC. */
     fun complete(result: NetFetchResultParams): Boolean = pending[result.id]?.complete(result) ?: false
+}
 
-    private fun NetFetchResultParams.toNativeResponse(url: String): NativeResponse {
-        error?.let { failure ->
-            throw when (failure.code) {
-                ErrorCode.CLOUDFLARE -> CloudflareBlockedException(url, failure.message)
-                ErrorCode.TIMEOUT -> SocketTimeoutException(failure.message)
-                ErrorCode.CANCELLED -> IOException("Canceled")
-                else -> IOException(failure.message)
-            }
+/** The app's answer as a [NativeResponse] with [body], or the exception its error stands for. */
+internal fun NetFetchResultParams.toNativeResponse(
+    url: String,
+    body: ByteArray?,
+): NativeResponse {
+    error?.let { failure ->
+        throw when (failure.code) {
+            ErrorCode.CLOUDFLARE -> CloudflareBlockedException(url, failure.message)
+            ErrorCode.TIMEOUT -> SocketTimeoutException(failure.message)
+            ErrorCode.CANCELLED -> IOException("Canceled")
+            else -> IOException(failure.message)
         }
-        return NativeResponse(
-            code = code,
-            message = message,
-            headers = headers.mapNotNull { pair -> pair.takeIf { it.size == 2 }?.let { it[0] to it[1] } },
-            body = bodyBase64?.let(Base64.getDecoder()::decode),
-            protocol = protocol,
-        )
     }
+    return NativeResponse(
+        code = code,
+        message = message,
+        headers = headers.mapNotNull { pair -> pair.takeIf { it.size == 2 }?.let { it[0] to it[1] } },
+        body = body,
+        protocol = protocol,
+    )
 }

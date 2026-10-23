@@ -5,8 +5,9 @@ import kotlinx.serialization.json.Json
 import java.lang.management.ManagementFactory
 
 /**
- * JNI entry points used by the app's native shim (OneechanJVM). `complete` and `emit` are
- * registered by the shim with RegisterNatives; `start` and `call` are invoked from its threads.
+ * JNI entry points used by the app's native shim (OneechanJVM). `complete`, `emit`, `fetch` and
+ * `fetchCancel` are registered by the shim with RegisterNatives; `start`, `call` and `fetchResult`
+ * are invoked from its threads.
  */
 object EmbeddedBridge {
     @Volatile private var core: EmbeddedHostCore? = null
@@ -21,7 +22,7 @@ object EmbeddedBridge {
                     "-XX:+UnlockDiagnosticVMOptions -XX:-BytecodeVerificationRemote, OpenJ9 with -Xverify:none"
             }
             val parsed = Json.decodeFromString(EmbeddedConfig.serializer(), config.decodeToString())
-            core = EmbeddedHostCore(parsed, reply = ::complete, emit = ::emit)
+            core = EmbeddedHostCore(parsed, reply = ::complete, emit = ::emit, fetch = ::fetch, fetchCancel = ::fetchCancel)
             null
         } catch (e: Throwable) {
             e.printStackTrace()
@@ -41,12 +42,32 @@ object EmbeddedBridge {
         core.call(requestId, request)
     }
 
+    /** The app's answer to [fetch] [id]: `net.fetchResult` params without the body (JSON), and the raw body. */
+    @JvmStatic
+    fun fetchResult(
+        id: Long,
+        meta: ByteArray,
+        body: ByteArray?,
+    ) {
+        core?.fetchResult(id, meta, body)
+    }
+
     @JvmStatic external fun complete(
         requestId: Long,
         response: ByteArray,
     )
 
     @JvmStatic external fun emit(event: ByteArray)
+
+    /** Has the app perform extension HTTP request [id]: a `net.fetch` event without the body (JSON), and the raw body. */
+    @JvmStatic external fun fetch(
+        id: Long,
+        meta: ByteArray,
+        body: ByteArray?,
+    )
+
+    /** The answer to request [id] is no longer needed (cancelled or timed out). */
+    @JvmStatic external fun fetchCancel(id: Long)
 
     private fun verifiesRemoteBytecode(): Boolean =
         BytecodeVerification.remoteVerificationEnabled(

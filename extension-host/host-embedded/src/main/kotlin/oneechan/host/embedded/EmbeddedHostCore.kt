@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import oneechan.host.ExtensionHost
 import oneechan.host.HostPaths
+import oneechan.host.net.BinaryNativeNet
 import oneechan.host.rpc.ErrorCode
 import oneechan.host.rpc.RpcDispatcher
 import oneechan.host.rpc.RpcErrorDto
@@ -26,24 +27,40 @@ data class EmbeddedConfig(
 /**
  * The in-process host behind the JNI bridge: UTF-8 JSON bytes in, bytes out. Replies carry the
  * caller's native request id; events go to [emit]. The app is always connected, so extension
- * HTTP goes through the app's network stack (NativeNet events).
+ * HTTP goes through the app's network stack: requests go to [fetch] and come back through
+ * [fetchResult], bodies as raw bytes ([BinaryNativeNet]).
  */
 class EmbeddedHostCore(
     config: EmbeddedConfig,
     private val reply: (Long, ByteArray) -> Unit,
     private val emit: (ByteArray) -> Unit,
+    /** Hands an extension HTTP request to the app: id, metadata (JSON) and raw body. Returns at once. */
+    fetch: (Long, ByteArray, ByteArray?) -> Unit,
+    /** Tells the app the answer to a request is no longer needed. */
+    fetchCancel: (Long) -> Unit,
     /** `debug.*` self-tests (one evaluates any script): Debug builds and tests only (`-Doneechan.diagnostics=true`). */
     private val diagnostics: Boolean = System.getProperty("oneechan.diagnostics") == "true",
 ) {
+    private val nativeNet = BinaryNativeNet(fetch, fetchCancel)
     private val host: ExtensionHost =
         ExtensionHost(
             HostPaths(Path(config.dataDir), Path(config.cacheDir), Path(config.tmpDir)),
+            platformNativeNet = nativeNet,
             appConnected = { true },
             events = { event -> emit(host.json.encodeToString(RpcEvent.serializer(), event).encodeToByteArray()) },
         )
     private val json = host.json
     private val dispatcher = RpcDispatcher(host)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** The app's answer to a [fetch]: metadata (JSON) and raw body. */
+    fun fetchResult(
+        id: Long,
+        meta: ByteArray,
+        body: ByteArray?,
+    ) {
+        nativeNet.complete(id, meta, body)
+    }
 
     /** Returns immediately; the reply is delivered later through [reply]. */
     fun call(
@@ -58,6 +75,7 @@ class EmbeddedHostCore(
                         diagnostics && GraphicsDiagnostics.handles(decoded.method) -> GraphicsDiagnostics.call(decoded)
                         diagnostics && JsDiagnostics.handles(decoded.method) -> JsDiagnostics.call(decoded)
                         diagnostics && WebViewDiagnostics.handles(decoded.method) -> WebViewDiagnostics.call(decoded)
+                        diagnostics && NetDiagnostics.handles(decoded.method) -> NetDiagnostics.call(decoded)
                         else -> dispatcher.dispatch(decoded)
                     }
                 } catch (e: Exception) {

@@ -28,6 +28,8 @@ class EmbeddedHostCoreTest {
                 latch.countDown()
             },
             emit = {},
+            fetch = { _, _, _ -> },
+            fetchCancel = {},
             diagnostics = diagnostics,
         )
 

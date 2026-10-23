@@ -198,7 +198,7 @@ from scratch with them: fetch, three builds, package, app and UI test.
 | Kotlin: bridge verification check | `cd extension-host && ./gradlew :host-embedded:test` |
 | Swift, macOS (HotSpot in-process, OpenJ9 = Semeru's `lib/server/libjvm.dylib` in a child process `EmbeddedHostProbe` because one process holds one JVM; options parsing) | `swift test --package-path ios/Packages/OneechanKit --filter EmbeddedHostTests` (9 tests) |
 | Static VM in a simulator, no app: boot, workload, exec-memory audit | `./smoke-openj9-ios.sh iphonesimulator vm` |
-| The host through the app's shim in a simulator, with the bundled options (and an inserted library, as XCTest does) | `SHIM_DIR=<app>/ios/Packages/OneechanKit/Sources/OneechanJVM ./smoke-openj9-ios.sh iphonesimulator host` |
+| The host through the app's shim in a simulator, with the bundled options (and an inserted library, as XCTest does), plus two bodies through the shim's binary channel for extension HTTP | `SHIM_DIR=<app>/ios/Packages/OneechanKit/Sources/OneechanJVM ./smoke-openj9-ios.sh iphonesimulator host` |
 | Release gate in the app: add the keiyoushi repo, install MangaDex, load popular, open a manga | `TEST_RUNNER_ONEECHAN_EMBEDDED_UI=1 xcodebuild test ... -only-testing:OneechanUITests/EmbeddedHostUITests` |
 | More names the OpenJ9 runtime (screenshot attached) | `TEST_RUNNER_ONEECHAN_EMBEDDED_UI=1 xcodebuild test ... -only-testing:OneechanUITests/EmbeddedRuntimeUITests` |
 
