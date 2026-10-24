@@ -151,6 +151,11 @@ class ContractFixturesTest {
         )
         fixture("challenge_required", ChallengeRequiredEvent.serializer(), ChallengeRequiredEvent("c1", "https://site.test/x", "site.test", "UA/1"))
         fixture(
+            "event_host_toast",
+            RpcEvent.serializer(),
+            RpcEvent("host.toast", json.encodeToJsonElement(HostToastEvent.serializer(), HostToastEvent("Chapter List loading takes time for first time", long = true))),
+        )
+        fixture(
             "challenge_resolved",
             ChallengeResolvedParams.serializer(),
             ChallengeResolvedParams("c1", true, null, listOf(CookieDto("cf_clearance", "x", ".site.test", "/", 1_900_000_000_000, secure = true, httpOnly = true))),
@@ -197,6 +202,7 @@ class ContractFixturesTest {
                 interceptRequests = true,
                 consoleMessages = true,
                 javascriptInterfaces = listOf(JavascriptInterfaceDto("Bridge", listOf(JavascriptMethodDto("post"), JavascriptMethodDto("sum", returnsValue = true)))),
+                supportMultipleWindows = true,
             )
         fixture(
             "webview_command_load",
@@ -210,6 +216,11 @@ class ContractFixturesTest {
         )
         fixture("webview_command_evaluate", WebViewCommandEvent.serializer(), WebViewCommandEvent("v1", WebViewCommandDto.Evaluate(3, "localStorage.getItem(\"auth\")")))
         fixture("webview_command_destroy", WebViewCommandEvent.serializer(), WebViewCommandEvent("v1", WebViewCommandDto.Destroy))
+        fixture(
+            "webview_command_touch",
+            WebViewCommandEvent.serializer(),
+            WebViewCommandEvent("v1", WebViewCommandDto.Touch("down", 120.5, 300.0, pointerId = 0, pressure = 0.4, radiusX = 9.5, radiusY = 7.25, timestampMillis = 1_234_567)),
+        )
         fixture(
             "webview_event_page_finished",
             WebViewEventParams.serializer(),

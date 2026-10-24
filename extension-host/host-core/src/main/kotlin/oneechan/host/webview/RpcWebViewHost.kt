@@ -101,6 +101,7 @@ internal fun WebViewCommand.toDto(): WebViewCommandDto =
         is WebViewCommand.LoadData -> WebViewCommandDto.LoadData(data, baseUrl, mimeType, encoding, historyUrl, config.toDto())
         is WebViewCommand.Reload -> WebViewCommandDto.Reload(config.toDto())
         is WebViewCommand.Evaluate -> WebViewCommandDto.Evaluate(requestId, script)
+        is WebViewCommand.Touch -> WebViewCommandDto.Touch(action, x, y, pointerId, pressure, radiusX, radiusY, timestampMillis)
         WebViewCommand.Stop -> WebViewCommandDto.Stop
         WebViewCommand.GoBack -> WebViewCommandDto.GoBack
         WebViewCommand.GoForward -> WebViewCommandDto.GoForward
@@ -110,7 +111,7 @@ internal fun WebViewCommand.toDto(): WebViewCommandDto =
 internal fun WebViewConfig.toDto() =
     WebViewConfigDto(
         userAgent, javaScriptEnabled, blockNetworkImage, interceptRequests, overrideUrlLoading, consoleMessages,
-        javascriptInterfaces.map(JavascriptInterfaceSpec::toDto),
+        javascriptInterfaces.map(JavascriptInterfaceSpec::toDto), supportMultipleWindows, createWindow,
     )
 
 private fun JavascriptInterfaceSpec.toDto() = JavascriptInterfaceDto(name, methods.map { JavascriptMethodDto(it.name, it.returnsValue) })

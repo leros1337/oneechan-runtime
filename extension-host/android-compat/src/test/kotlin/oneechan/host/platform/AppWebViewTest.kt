@@ -3,6 +3,8 @@ package oneechan.host.platform
 import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.os.Looper
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -434,6 +436,112 @@ class AppWebViewTest {
         }
         assertEquals(7, completed.get(5, TimeUnit.SECONDS))
         assertEquals(0, onLooper { webView.progress })
+        onLooper { webView.destroy() }
+    }
+
+    private fun touch(
+        downTime: Long,
+        eventTime: Long,
+        action: Int,
+        vararg pointers: Triple<Int, Float, Float>,
+    ): MotionEvent {
+        val properties =
+            pointers
+                .map { (id, _, _) ->
+                    MotionEvent.PointerProperties().apply {
+                        this.id = id
+                        toolType = MotionEvent.TOOL_TYPE_FINGER
+                    }
+                }.toTypedArray()
+        val coords =
+            pointers
+                .map { (_, x, y) ->
+                    MotionEvent.PointerCoords().apply {
+                        this.x = x
+                        this.y = y
+                        pressure = 0.5f
+                        touchMajor = 60f
+                        touchMinor = 30f
+                    }
+                }.toTypedArray()
+        return MotionEvent.obtain(downTime, eventTime, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+    }
+
+    /**
+     * An extension tapping a WebView: CSS px × `resources.displayMetrics.density` in, dispatchTouchEvent, recycle. The
+     * app gets each touch in order, back in CSS px of the page.
+     */
+    @Test
+    fun `dispatched touches reach the app in CSS pixels`() {
+        val webView = newWebView()
+        val density = onLooper { webView.resources.displayMetrics.density }
+        assertEquals(3f, density)
+        val consumed =
+            onLooper {
+                listOf(
+                    touch(100, 100, MotionEvent.ACTION_DOWN, Triple(0, 30f * density, 60f * density)),
+                    touch(100, 116, MotionEvent.ACTION_MOVE, Triple(0, 30f * density, 90f * density)),
+                    touch(100, 132, MotionEvent.ACTION_UP, Triple(0, 30f * density, 120f * density)),
+                ).map { event -> webView.dispatchTouchEvent(event).also { event.recycle() } }
+            }
+        assertEquals(listOf(true, true, true), consumed)
+        val (viewId, down) = host.next()
+        assertEquals(WebViewCommand.Touch("down", 30.0, 60.0, 0, 0.5, 10.0, 5.0, 100), down)
+        assertEquals(viewId to WebViewCommand.Touch("move", 30.0, 90.0, 0, 0.5, 10.0, 5.0, 116), host.next())
+        assertEquals(viewId to WebViewCommand.Touch("up", 30.0, 120.0, 0, 0.5, 10.0, 5.0, 132), host.next())
+        onLooper { webView.destroy() }
+        assertEquals(WebViewCommand.Destroy, host.next().second)
+        assertFalse(onLooper { webView.dispatchTouchEvent(touch(0, 0, MotionEvent.ACTION_DOWN, Triple(0, 1f, 1f))) }, "a destroyed view takes no touches")
+        assertNull(host.commands.poll(200, TimeUnit.MILLISECONDS))
+    }
+
+    @Test
+    fun `a second finger and a cancel`() {
+        val webView = newWebView()
+        val second = MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+        onLooper {
+            webView.dispatchTouchEvent(touch(0, 1, MotionEvent.ACTION_DOWN, Triple(0, 3f, 3f)))
+            webView.dispatchTouchEvent(touch(0, 2, second, Triple(0, 3f, 3f), Triple(4, 6f, 6f)))
+            webView.dispatchTouchEvent(touch(0, 3, MotionEvent.ACTION_MOVE, Triple(0, 9f, 9f), Triple(4, 12f, 12f)))
+            webView.dispatchTouchEvent(touch(0, 4, MotionEvent.ACTION_CANCEL, Triple(0, 9f, 9f), Triple(4, 12f, 12f)))
+        }
+        val sent = List(6) { host.next().second as WebViewCommand.Touch }.map { "${it.action} ${it.pointerId} ${it.x}" }
+        assertEquals(listOf("down 0 1.0", "down 4 2.0", "move 0 3.0", "move 4 4.0", "cancel 0 3.0", "cancel 4 4.0"), sent)
+        onLooper { webView.destroy() }
+    }
+
+    /** Extensions refuse a site's ad windows with setSupportMultipleWindows(true) and no onCreateWindow. */
+    @Test
+    fun `navigations say whether new windows are refused`() {
+        val webView = newWebView()
+        onLooper { webView.loadUrl("https://site.test/") }
+        val plain = (host.next().second as WebViewCommand.Load).config
+        assertFalse(plain.supportMultipleWindows, "Android's default: new windows load in this view")
+        assertFalse(plain.createWindow)
+
+        onLooper {
+            webView.settings.setSupportMultipleWindows(true)
+            webView.webChromeClient = WebChromeClient()
+            webView.loadUrl("https://site.test/reader")
+        }
+        val refusing = (host.next().second as WebViewCommand.Load).config
+        assertTrue(refusing.supportMultipleWindows)
+        assertFalse(refusing.createWindow, "the default onCreateWindow refuses the window")
+
+        onLooper {
+            webView.webChromeClient =
+                object : WebChromeClient() {
+                    override fun onCreateWindow(
+                        view: WebView?,
+                        isDialog: Boolean,
+                        isUserGesture: Boolean,
+                        resultMsg: android.os.Message?,
+                    ): Boolean = false
+                }
+            webView.reload()
+        }
+        val creating = (host.next().second as WebViewCommand.Reload).config
+        assertTrue(creating.supportMultipleWindows && creating.createWindow)
         onLooper { webView.destroy() }
     }
 }

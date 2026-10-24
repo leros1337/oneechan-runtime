@@ -1,0 +1,14 @@
+{
+    "viewId": "v1",
+    "command": {
+        "type": "touch",
+        "action": "down",
+        "x": 120.5,
+        "y": 300.0,
+        "pointerId": 0,
+        "pressure": 0.4,
+        "radiusX": 9.5,
+        "radiusY": 7.25,
+        "timestampMillis": 1234567
+    }
+}

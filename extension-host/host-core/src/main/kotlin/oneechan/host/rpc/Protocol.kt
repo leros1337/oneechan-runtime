@@ -93,6 +93,13 @@ data class InitParams(
     val webView: Boolean? = null,
 )
 
+/** Event `host.toast`: an extension showed an android.widget.Toast; [long] for LENGTH_LONG. */
+@Serializable
+data class HostToastEvent(
+    val text: String,
+    val long: Boolean = false,
+)
+
 // ---------------------------------------------------------------------------------------------
 // net.* (platform HTTP stack, cookies)
 
@@ -690,6 +697,24 @@ sealed class WebViewCommandDto {
         val script: String,
     ) : WebViewCommandDto()
 
+    /**
+     * One pointer of a touch the extension dispatched to the WebView, in CSS pixels of the page. [action]
+     * is `down`, `move`, `up` or `cancel`; [radiusX]/[radiusY] are half the contact's axes in CSS pixels;
+     * [timestampMillis] is the event's uptime. The app replays it in the page, in order with the other commands.
+     */
+    @Serializable
+    @SerialName("touch")
+    data class Touch(
+        val action: String,
+        val x: Double,
+        val y: Double,
+        val pointerId: Int = 0,
+        val pressure: Double = 1.0,
+        val radiusX: Double = 0.0,
+        val radiusY: Double = 0.0,
+        val timestampMillis: Long = 0,
+    ) : WebViewCommandDto()
+
     @Serializable
     @SerialName("stop")
     data object Stop : WebViewCommandDto()
@@ -721,6 +746,10 @@ data class WebViewConfigDto(
     val consoleMessages: Boolean = false,
     /** `window[name]` objects whose methods call `webview.jsCall`. */
     val javascriptInterfaces: List<JavascriptInterfaceDto> = emptyList(),
+    /** setSupportMultipleWindows(true): new windows are not loaded in this view; refused unless [createWindow]. */
+    val supportMultipleWindows: Boolean = false,
+    /** The WebChromeClient overrides onCreateWindow. */
+    val createWindow: Boolean = false,
 )
 
 @Serializable

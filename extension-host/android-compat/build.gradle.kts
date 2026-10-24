@@ -20,6 +20,15 @@ private val vendorExcludes =
         "xyz/nulldev/androidcompat/AndroidCompatInitializer.kt",
         "app/cash/quickjs/QuickJs.java",
         "androidx/preference/Preference.java",
+        // Touches and the display (dispatchTouchEvent, getResources) for extensions that drive a page.
+        "android/webkit/WebView.java",
+        // Parents and children, and a display service: extensions host offscreen WebViews in a
+        // Presentation on a virtual display.
+        "android/view/View.java",
+        "android/view/ViewGroup.java",
+        "xyz/nulldev/androidcompat/androidimpl/CustomContext.java",
+        // Toast#show reaches the app (host.toast).
+        "android/widget/Toast.java",
         // android.graphics on a GraphicsBackend (native CoreGraphics on iOS, AWT on desktop).
         "android/graphics/Bitmap.java",
         "android/graphics/BitmapFactory.java",

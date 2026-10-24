@@ -39,6 +39,7 @@ import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import oneechan.host.platform.Graphics
 import oneechan.host.platform.JsEngines
+import oneechan.host.platform.Toasts
 import oneechan.host.platform.WebViewBackends
 import oneechan.host.rpc.AvailableExtensionDto
 import oneechan.host.rpc.AcceptedDto
@@ -59,6 +60,7 @@ import oneechan.host.rpc.ExtTrustParams
 import oneechan.host.rpc.FilterDto
 import oneechan.host.rpc.HeadersDto
 import oneechan.host.rpc.HelloResult
+import oneechan.host.rpc.HostToastEvent
 import oneechan.host.rpc.IconDto
 import oneechan.host.rpc.ImageFileDto
 import oneechan.host.rpc.InitParams
@@ -172,6 +174,8 @@ class ExtensionHost(
         NetworkPlatform.challengeSolver = rpcChallengeSolver
         // The app runs extension WebViews on WKWebView (webview.* events and RPCs).
         params.webView?.let { enabled -> WebViewBackends.host = if (enabled) rpcWebViewHost else null }
+        // ... and shows extension Toasts like its own.
+        Toasts.sink = { text, long -> events.emit(RpcEvent("host.toast", json.encodeToJsonElement(HostToastEvent(text, long)))) }
     }
 
     fun fetchResult(params: NetFetchResultParams): AcceptedDto = AcceptedDto(rpcNativeNet.complete(params))

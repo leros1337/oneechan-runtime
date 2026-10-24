@@ -13,7 +13,9 @@
             "interceptRequests": false,
             "overrideUrlLoading": false,
             "consoleMessages": false,
-            "javascriptInterfaces": []
+            "javascriptInterfaces": [],
+            "supportMultipleWindows": false,
+            "createWindow": false
         }
     }
 }

@@ -3,6 +3,7 @@ package oneechan.host.platform
 import android.net.Uri
 import android.os.Handler
 import android.util.Log
+import android.view.MotionEvent
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -140,7 +141,7 @@ internal class AppWebView(
     @Volatile private var destroyed = false
 
     val provider: WebViewProvider = forward(WebViewProvider::class.java, this)
-    private val viewDelegate: WebViewProvider.ViewDelegate = forward(WebViewProvider.ViewDelegate::class.java, Unit)
+    private val viewDelegate: WebViewProvider.ViewDelegate = forward(WebViewProvider.ViewDelegate::class.java, ViewDelegateTarget())
     private val scrollDelegate: WebViewProvider.ScrollDelegate = forward(WebViewProvider.ScrollDelegate::class.java, Unit)
 
     // ---- WebViewProvider ---------------------------------------------------------------------
@@ -285,6 +286,53 @@ internal class AppWebView(
         host.send(id, WebViewCommand.Destroy)
     }
 
+    // ---- ViewDelegate ------------------------------------------------------------------------
+
+    /**
+     * The view delegate's implemented methods (the others are no-ops, as for a view never drawn):
+     * touches the extension dispatches (`dispatchTouchEvent` → `onTouchEvent`) go to the app, one
+     * [WebViewCommand.Touch] per pointer in CSS pixels, in order.
+     */
+    inner class ViewDelegateTarget {
+        fun onTouchEvent(event: MotionEvent): Boolean {
+            if (destroyed) return false
+            val action =
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> WebViewCommand.Touch.DOWN
+                    MotionEvent.ACTION_MOVE -> WebViewCommand.Touch.MOVE
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> WebViewCommand.Touch.UP
+                    MotionEvent.ACTION_CANCEL -> WebViewCommand.Touch.CANCEL
+                    else -> return false
+                }
+            // The density WebView.getResources() reports: pixels back to the page's CSS pixels.
+            val density =
+                view.resources.displayMetrics.density
+                    .takeIf { it > 0f }
+                    ?.toDouble() ?: 1.0
+            // A finger going down or up is the action's pointer; moves and cancels concern every pointer.
+            val pointers =
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_MOVE, MotionEvent.ACTION_CANCEL -> 0 until event.pointerCount
+                    else -> event.actionIndex.let { it..it }
+                }
+            for (index in pointers) {
+                send(
+                    WebViewCommand.Touch(
+                        action = action,
+                        x = event.getX(index) / density,
+                        y = event.getY(index) / density,
+                        pointerId = event.getPointerId(index),
+                        pressure = event.getPressure(index).toDouble(),
+                        radiusX = event.getTouchMajor(index) / 2.0 / density,
+                        radiusY = event.getTouchMinor(index) / 2.0 / density,
+                        timestampMillis = event.eventTime,
+                    ),
+                )
+            }
+            return true
+        }
+    }
+
     // ---- From the app ------------------------------------------------------------------------
 
     fun onEvent(event: WebViewEvent) {
@@ -407,6 +455,13 @@ internal class AppWebView(
                     (
                         overrides(chrome, WebChromeClient::class.java, "onConsoleMessage", ConsoleMessage::class.java) ||
                             overrides(chrome, WebChromeClient::class.java, "onConsoleMessage", String::class.java, Int::class.javaPrimitiveType!!, String::class.java)
+                    ),
+            supportMultipleWindows = settings.supportMultipleWindows(),
+            createWindow =
+                chrome != null &&
+                    overrides(
+                        chrome, WebChromeClient::class.java, "onCreateWindow", WebView::class.java, Boolean::class.javaPrimitiveType!!,
+                        Boolean::class.javaPrimitiveType!!, android.os.Message::class.java,
                     ),
             javascriptInterfaces =
                 interfaces.entries.sortedBy { it.key }.map { (name, target) ->

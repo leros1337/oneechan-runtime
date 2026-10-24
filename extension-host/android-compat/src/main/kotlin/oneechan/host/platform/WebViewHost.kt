@@ -74,6 +74,30 @@ sealed interface WebViewCommand {
         val script: String,
     ) : WebViewCommand
 
+    /**
+     * One pointer of a MotionEvent the extension dispatched to the WebView (`dispatchTouchEvent`), in
+     * CSS pixels of the page (the event's pixels / the WebView's display density). [action] is
+     * [DOWN], [MOVE], [UP] or [CANCEL]; [radiusX] and [radiusY] are half the contact's major and minor
+     * axes; [timestampMillis] is the event time (uptime). The app replays it in the page.
+     */
+    data class Touch(
+        val action: String,
+        val x: Double,
+        val y: Double,
+        val pointerId: Int,
+        val pressure: Double,
+        val radiusX: Double,
+        val radiusY: Double,
+        val timestampMillis: Long,
+    ) : WebViewCommand {
+        companion object {
+            const val DOWN = "down"
+            const val MOVE = "move"
+            const val UP = "up"
+            const val CANCEL = "cancel"
+        }
+    }
+
     data object Stop : WebViewCommand
 
     data object GoBack : WebViewCommand
@@ -97,6 +121,13 @@ data class WebViewConfig(
     val consoleMessages: Boolean = false,
     /** addJavascriptInterface objects: what the page sees as `window[name]`. */
     val javascriptInterfaces: List<JavascriptInterfaceSpec> = emptyList(),
+    /**
+     * WebSettings.setSupportMultipleWindows(true): new windows (target=_blank, window.open) go to
+     * WebChromeClient.onCreateWindow instead of loading in this view; without [createWindow] they are refused.
+     */
+    val supportMultipleWindows: Boolean = false,
+    /** The WebChromeClient overrides onCreateWindow. */
+    val createWindow: Boolean = false,
 )
 
 /** A `window[name]` object: the @JavascriptInterface methods of an addJavascriptInterface object. */

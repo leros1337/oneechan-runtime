@@ -28,7 +28,9 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "supportMultipleWindows": true,
+            "createWindow": false
         }
     }
 }
