@@ -1,0 +1,9 @@
+# gitleaks (`gitleaks git .`, and the app repo's pre-commit hook): the default rules, minus values that are public by
+# design.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Extension signing-key fingerprints: the SHA-256 of a repo's public signing certificate, published in its repo.json and kept in backups"
+regexTarget = "line"
+regexes = ['''signingKey(Fingerprint)?"?\s*[:=]''']
