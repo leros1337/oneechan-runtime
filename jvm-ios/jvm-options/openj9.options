@@ -33,6 +33,12 @@
 -Xdump:directory=${cacheDir}
 -Xdump:system:none
 -Xdump:heap:none
+# Crash signals (SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP, SIGABRT) are left to iOS: the VM shares the
+# app's process, and with its handlers an abort anywhere in the app (a SIGABRT on a
+# networking thread during global search, 2026-10-28) became a javacore without a native stack and an
+# exit, and iOS kept no crash report. Interpreter only, the VM needs none of them to run. It still
+# handles SIGQUIT and SIGTERM.
+-Xrs:sync
 # No trace engine (it costs startup time and CPU on every tracepoint). Javacores keep everything they
 # show today: their trace history sections are empty anyway, because the jre has no trace format
 # files. Lost: the binary Snap*.trc next to a crash javacore.
